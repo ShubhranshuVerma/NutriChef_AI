@@ -1,0 +1,7 @@
+diet,excluded_groups,description
+vegan,meat;poultry;fish;seafood;egg;dairy;honey;gelatin,No animal products at all.
+vegetarian,meat;poultry;fish;seafood;egg;gelatin,"Indian (lacto-)vegetarian: dairy allowed, no eggs. FSSAI classifies eggs as non-vegetarian."
+eggetarian,meat;poultry;fish;seafood;gelatin,Lacto-ovo vegetarian: dairy and eggs allowed.
+pescatarian,meat;poultry;gelatin,Vegetarian plus fish and seafood.
+jain,meat;poultry;fish;seafood;egg;gelatin;honey;onion_garlic;root_vegetable,"No animal flesh, eggs, honey, onion, garlic or root vegetables. Dairy allowed."
+non_vegetarian,,No diet-based exclusions.

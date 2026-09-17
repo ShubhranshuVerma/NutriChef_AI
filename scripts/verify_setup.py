@@ -43,6 +43,7 @@ REQUIRED_DIRS = [
     "data/raw",
     "data/processed",
     "data/knowledge_base",
+    "data/reference",
     "ml/artifacts",
     "tests/unit",
 ]

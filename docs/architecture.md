@@ -315,6 +315,7 @@ nutrichef-ai/
 │   ├── nutrition/              # units.py, food_matcher.py, calculator.py
 │   ├── validation/             # allergens.py, diet.py, constraints.py, report.py
 │   ├── rag/                    # ingest.py, splitter.py, embeddings.py, store.py, retriever.py
+│   ├── datasets/               # usda.py, recipenlg.py, reference.py (data loaders)
 │   ├── ml/                     # features.py, ranker.py, cold_start.py
 │   └── database/               # base.py, session.py, models.py, repositories/
 ├── ui/                         # streamlit_app.py, pages/, api_client.py
@@ -323,7 +324,8 @@ nutrichef-ai/
 │   ├── evaluation/             # metrics.py (P@K, R@K, HR, NDCG), evaluate.py
 │   └── artifacts/              # git-ignored
 ├── data/
-│   ├── raw/  processed/  interactions/  knowledge_base/
+│   ├── reference/  knowledge_base/          # small curated files (committed)
+│   ├── raw/  processed/  interactions/      # git-ignored
 ├── scripts/                    # download_usda.py, seed_db.py, ingest_kb.py, demo_*.py
 ├── tests/
 │   ├── unit/ integration/ api/ agents/ rag/ ml/

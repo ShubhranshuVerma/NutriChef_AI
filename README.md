@@ -12,7 +12,8 @@ NutriChef turns requests like *"I'm vegetarian, allergic to soy, have paneer and
 |---|---|
 | 0–1 Analysis & architecture | ✅ |
 | 2 Repository & environment setup | ✅ |
-| 3+ Data, engines, ML, RAG, agents, API, UI, MLOps | ⏳ |
+| 3 Data acquisition | ✅ |
+| 4+ Processing, engines, ML, RAG, agents, API, UI, MLOps | ⏳ |
 
 See [`docs/architecture.md`](docs/architecture.md).
 
@@ -40,13 +41,19 @@ pytest
 app/        backend package (api, agents, core, schemas, services, rag, ml, nutrition, validation, database)
 ui/         Streamlit frontend
 ml/         training & evaluation scripts, artifacts
-data/       raw / processed / interactions / knowledge_base  (git-ignored contents)
+data/       reference/ + knowledge_base/ (committed); raw/, processed/, interactions/ (git-ignored)
 scripts/    one-off utilities (setup checks, data download, seeding)
 tests/      unit, integration, api, agents, rag, ml
 docs/       architecture, data sources
 ```
 
 ## Data
+
+```bash
+python -m scripts.download_usda       # USDA SR Legacy -> data/processed/usda_foods.csv
+python -m scripts.sample_recipenlg     # RecipeNLG -> data/processed/recipenlg_sample.csv
+python -m scripts.check_data           # status of every data source
+```
 
 Datasets and their licenses are listed in [`docs/data_sources.md`](docs/data_sources.md). RecipeNLG is used under its non-commercial research/educational terms and is never committed to this repository.
 

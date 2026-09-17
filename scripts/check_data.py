@@ -8,6 +8,7 @@ import sys
 
 from app.core.config import get_settings
 from app.datasets import recipenlg, reference, usda
+from app.nutrition.food_matcher import load_catalog
 
 OK, MISSING = "[ OK ]", "[MISS]"
 
@@ -24,6 +25,7 @@ def main() -> int:
         "diets": reference.load_diets,
         "prices (INR)": reference.load_prices,
         "curated Indian recipes": reference.load_curated_recipes,
+        "ingredient catalog": load_catalog,
     }
     for name, loader in checks.items():
         print(f"  {OK} {name:<24} {len(loader()):>5} rows")
@@ -50,6 +52,19 @@ def main() -> int:
     else:
         ready = False
         print(f"  {MISSING} RecipeNLG sample - run: python -m scripts.sample_recipenlg")
+
+    from app.processing.recipes import RECIPES_PATH
+    from scripts.build_ingredient_foods import OUTPUT_PATH as FOODS_MAP
+
+    for label, path, command in [
+        ("ingredient -> USDA map", FOODS_MAP, "scripts.build_ingredient_foods"),
+        ("processed recipes", RECIPES_PATH, "scripts.process_recipes"),
+    ]:
+        if path.exists():
+            print(f"  {OK} {label:<24} ({path.name})")
+        else:
+            ready = False
+            print(f"  {MISSING} {label} - run: python -m {command}")
 
     print("\nAll data ready." if ready else "\nSome data is missing - see [MISS] lines.")
     return 0 if ready else 1

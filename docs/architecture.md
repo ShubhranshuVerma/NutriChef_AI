@@ -312,7 +312,8 @@ nutrichef-ai/
 │   ├── core/                   # config.py, logging.py, metrics.py, security.py, llm.py
 │   ├── schemas/                # Pydantic: constraints, recipe, nutrition, validation, plan, user, feedback
 │   ├── services/               # recipe_service, meal_plan_service, feedback_service, pricing, inventory, planner
-│   ├── nutrition/              # units.py, food_matcher.py, calculator.py
+│   ├── nutrition/              # parsing.py, food_matcher.py, units.py, calculator.py
+│   ├── processing/             # recipes.py (cleaning), features.py (static recipe features)
 │   ├── validation/             # allergens.py, diet.py, constraints.py, report.py
 │   ├── rag/                    # ingest.py, splitter.py, embeddings.py, store.py, retriever.py
 │   ├── datasets/               # usda.py, recipenlg.py, reference.py (data loaders)

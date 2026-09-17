@@ -12,6 +12,7 @@ Every external dataset is listed here **before** it is used. Downloaded and gene
 | Diet rules | `data/reference/diets.csv`, `food_group_keywords.csv` | Diet validation | Written for this project | Committed |
 | Prices (₹) | `data/reference/prices_inr.csv` | Budget estimates | Seeded from the mealora-ai-agent reference repo (CC BY 4.0 per its README) plus NutriChef estimates. **Unverified** — update from a trusted source (e.g. Dept. of Consumer Affairs Price Monitoring Cell) before relying on them. | Committed |
 | Curated Indian recipes (30) | `data/reference/curated_indian_recipes.csv` | Indian coverage for ranking and meal plans | Written for this project | Committed |
+| Ingredient catalog (~155) | `data/reference/ingredient_catalog.csv` → `data/processed/ingredient_foods.csv` | Canonical ingredients, aliases (incl. Hindi names), USDA food link, piece weights, densities | Written for this project; USDA descriptions from SR Legacy. Rows marked `usda_proxy` use a stand-in food (e.g. paneer → whole-milk mozzarella) | Committed |
 | Knowledge base (6 docs) | `data/knowledge_base/*.md` | RAG guidance: allergens, diets, nutrition, substitutions, food safety, cooking | Summaries written for this project; each file lists its sources | Committed |
 
 ## RecipeNLG
@@ -36,6 +37,8 @@ Citation:
 - **FSSAI (India), Labelling & Display Regulations 2020:** cereals containing gluten, crustaceans, milk, eggs, fish, peanuts, tree nuts, soybeans, sulphite ≥ 10 mg/kg.
 
 ## Known gaps (handled in later phases)
+
+- Proxy foods (`nutrition_source = usda_proxy`) are approximations; replace them with cited values (e.g. IFCT 2017) when available.
 
 - Some Indian ingredients (e.g. paneer varieties, specific dals, spice blends) may have no exact SR Legacy match; Phase 4 maps names to the closest food and records any manual values with a citation.
 - Prices are rough, unverified estimates.

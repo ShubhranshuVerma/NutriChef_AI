@@ -1,4 +1,0 @@
-# Development & testing tools (includes runtime deps)
--r requirements.txt
-
-pytest==9.1.1

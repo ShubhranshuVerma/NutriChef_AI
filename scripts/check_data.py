@@ -55,10 +55,12 @@ def main() -> int:
 
     from app.processing.recipes import RECIPES_PATH
     from scripts.build_ingredient_foods import OUTPUT_PATH as FOODS_MAP
+    from scripts.compute_nutrition import OUTPUT_PATH as NUTRITION_PATH
 
     for label, path, command in [
         ("ingredient -> USDA map", FOODS_MAP, "scripts.build_ingredient_foods"),
         ("processed recipes", RECIPES_PATH, "scripts.process_recipes"),
+        ("recipes with nutrition", NUTRITION_PATH, "scripts.compute_nutrition"),
     ]:
         if path.exists():
             print(f"  {OK} {label:<24} ({path.name})")

@@ -14,7 +14,8 @@ NutriChef turns requests like *"I'm vegetarian, allergic to soy, have paneer and
 | 2 Repository & environment setup | ✅ |
 | 3 Data acquisition | ✅ |
 | 4 Data processing & features | ✅ |
-| 5+ Nutrition engine, validation, ML, RAG, agents, API, UI, MLOps | ⏳ |
+| 5 Nutrition engine | ✅ |
+| 6+ Validation, ML, RAG, agents, API, UI, MLOps | ⏳ |
 
 See [`docs/architecture.md`](docs/architecture.md).
 
@@ -55,6 +56,7 @@ python -m scripts.download_usda       # USDA SR Legacy -> data/processed/usda_fo
 python -m scripts.sample_recipenlg     # RecipeNLG -> data/processed/recipenlg_sample.csv
 python -m scripts.build_ingredient_foods  # catalog ingredients -> USDA nutrients
 python -m scripts.process_recipes      # clean recipes -> data/processed/recipes.jsonl
+python -m scripts.compute_nutrition    # nutrition + cost -> data/processed/recipes_nutrition.jsonl
 python -m scripts.check_data           # status of every data source
 ```
 

@@ -8,7 +8,6 @@
 Search only helps the LLM write better recipes. The deterministic checks in
 app/validation still decide what is safe.
 """
-
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 
@@ -35,7 +34,6 @@ def open_collection(name, embeddings=None, directory=None):
     directory = str(directory or get_settings().chroma_dir)
     return Chroma(collection_name=name, embedding_function=embeddings or get_embeddings(),
                   persist_directory=directory)
-
 
 # ---------- turning our data into documents ----------
 

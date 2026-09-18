@@ -314,7 +314,7 @@ nutrichef-ai/
 │   ├── services/               # recipe_service, meal_plan_service, feedback_service, pricing, inventory, planner
 │   ├── nutrition/              # parsing.py, food_matcher.py, units.py, calculator.py
 │   ├── processing/             # recipes.py (cleaning), features.py (static recipe features)
-│   ├── validation/             # allergens.py, diet.py, constraints.py, report.py
+│   ├── validation/             # checks.py (allergens, diets, constraints)
 │   ├── rag/                    # ingest.py, splitter.py, embeddings.py, store.py, retriever.py
 │   ├── datasets/               # usda.py, recipenlg.py, reference.py (data loaders)
 │   ├── ml/                     # features.py, ranker.py, cold_start.py

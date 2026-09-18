@@ -84,3 +84,4 @@ def test_servings_are_estimated_when_missing(tables):
 )
 def test_estimate_servings(kcal, course, expected):
     assert estimate_servings(kcal, course) == expected
+    

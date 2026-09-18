@@ -16,7 +16,6 @@
 6. **Simple first.** One process for the API, SQLite + Chroma files, one EC2 host. No Kubernetes, Kafka, Spark or Airflow.
 
 ---
-
 ## 2. System context
 
 ```mermaid

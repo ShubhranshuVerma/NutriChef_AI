@@ -15,7 +15,6 @@ def recall_at_k(recommended, liked, k=5):
     top = recommended[:k]
     return sum(1 for r in top if r in liked) / len(liked)
 
-
 def hit_rate_at_k(recommended, liked, k=5):
     return 1.0 if any(r in liked for r in recommended[:k]) else 0.0
 

@@ -16,7 +16,9 @@ NutriChef turns requests like *"I'm vegetarian, allergic to soy, have paneer and
 | 4 Data processing & features | ✅ |
 | 5 Nutrition engine | ✅ |
 | 6 Allergen, diet & constraint checks | ✅ |
-| 7+ ML, RAG, agents, API, UI, MLOps | ⏳ |
+| 7 ML ranking & personalization | ✅ |
+| 8 RAG search (ChromaDB) | ✅ |
+| 9+ Agents, API, UI, MLOps | ⏳ |
 
 See [`docs/architecture.md`](docs/architecture.md).
 
@@ -59,6 +61,9 @@ python -m scripts.build_ingredient_foods  # catalog ingredients -> USDA nutrient
 python -m scripts.process_recipes      # clean recipes -> data/processed/recipes.jsonl
 python -m scripts.compute_nutrition    # nutrition + cost -> data/processed/recipes_nutrition.jsonl
 python -m scripts.tag_recipes          # allergen/diet tags -> data/processed/recipes_tagged.jsonl
+python -m scripts.simulate_users       # simulated users + feedback (training data)
+python -m scripts.train_ranker         # train the ranking model -> ml/artifacts/ranker.joblib
+python -m scripts.build_index          # search index (ChromaDB) for recipes + knowledge base
 python -m scripts.check_data           # status of every data source
 ```
 

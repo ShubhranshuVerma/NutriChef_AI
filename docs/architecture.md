@@ -184,8 +184,8 @@ flowchart LR
 | Split | Per-user time-based leave-last-out (no leakage) |
 | Metrics | Precision@K, Recall@K, HitRate@K, NDCG@K (K = 5, 10), plus ROC-AUC |
 | Cold start | users with < 5 interactions: `score = α·rule_score + (1−α)·model_score`, α = 1 − n/5 |
-| Tracking | MLflow: params, metrics, model, feature list, data version; registered model `nutrichef-ranker`, alias `champion` |
-| Serving | API loads `champion` at startup; falls back to rule score if no model (logged + metric) |
+| Tracking | MLflow (local SQLite file `mlflow.db`): params and metrics per run; the chosen model is saved to `ml/artifacts/ranker.joblib` |
+| Serving | The API loads `ml/artifacts/ranker.joblib` at startup; if it is missing, the rule score is used |
 
 ---
 

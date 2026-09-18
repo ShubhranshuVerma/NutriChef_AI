@@ -56,6 +56,8 @@ def main() -> int:
     from app.processing.recipes import RECIPES_PATH
     from scripts.build_ingredient_foods import OUTPUT_PATH as FOODS_MAP
     from scripts.compute_nutrition import OUTPUT_PATH as NUTRITION_PATH
+    from app.ml.ranker import MODEL_PATH
+    from scripts.simulate_users import INTERACTIONS_PATH
     from scripts.tag_recipes import OUTPUT_PATH as TAGGED_PATH
 
     for label, path, command in [
@@ -63,6 +65,9 @@ def main() -> int:
         ("processed recipes", RECIPES_PATH, "scripts.process_recipes"),
         ("recipes with nutrition", NUTRITION_PATH, "scripts.compute_nutrition"),
         ("tagged recipes", TAGGED_PATH, "scripts.tag_recipes"),
+        ("simulated interactions", INTERACTIONS_PATH, "scripts.simulate_users"),
+        ("ranking model", MODEL_PATH, "scripts.train_ranker"),
+        ("search index (Chroma)", get_settings().chroma_dir, "scripts.build_index"),
     ]:
         if path.exists():
             print(f"  {OK} {label:<24} ({path.name})")

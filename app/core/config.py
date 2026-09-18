@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///data/processed/nutrichef.db"
 
     # ---------- MLflow ----------
-    mlflow_tracking_uri: str = "file:./mlruns"
+    mlflow_tracking_uri: str = "sqlite:///mlflow.db"
     mlflow_experiment_name: str = "nutrichef-ranker"
 
     # ---------- Security ----------

@@ -21,7 +21,8 @@ NutriChef turns requests like *"I'm vegetarian, allergic to soy, have paneer and
 | 9 LLM agents | ✅ |
 | 10 Agent workflow (LangGraph) | ✅ |
 | 11–12 Meal planning, inventory & budget | ✅ |
-| 13+ API, database, UI, MLOps | ⏳ |
+| 13 REST API (FastAPI) | ✅ |
+| 14+ Database, UI, MLOps | ⏳ |
 
 See [`docs/architecture.md`](docs/architecture.md).
 
@@ -38,8 +39,8 @@ python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-dev.txt
 cp .env.example .env                        # then add your GOOGLE_API_KEY
-python -m scripts.verify_setup              # offline checks
-python -m scripts.verify_setup --ping-llm   # checks Gemini (1 small request)
+python -m scripts.check                     # settings + data status
+python -m scripts.check --ping-llm          # also checks Gemini (1 small request)
 pytest
 ```
 
@@ -64,6 +65,18 @@ python -m scripts.demo_meal_plan --no-llm --days 3 --budget 800
 python -m scripts.demo_meal_plan --slots breakfast,lunch,dinner,snack   # fuller days
 ```
 
+## API
+
+```bash
+uvicorn app.api.main:app --reload     # then open http://127.0.0.1:8000/docs
+```
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/health` | what is ready (recipes, model, index, LLM key) |
+| POST | `/api/v1/recipes/generate` | Scenario 1 — free text → one checked recipe |
+| POST | `/api/v1/plans/generate` | Scenario 2 — meal plan in a budget, using your inventory |
+
 ## Data
 
 ```bash
@@ -76,7 +89,7 @@ python -m scripts.tag_recipes          # allergen/diet tags -> data/processed/re
 python -m scripts.simulate_users       # simulated users + feedback (training data)
 python -m scripts.train_ranker         # train the ranking model -> ml/artifacts/ranker.joblib
 python -m scripts.build_index          # search index (ChromaDB) for recipes + knowledge base
-python -m scripts.check_data           # status of every data source
+python -m scripts.check                # what is ready, what still needs running
 ```
 
 Datasets and their licenses are listed in [`docs/data_sources.md`](docs/data_sources.md). RecipeNLG is used under its non-commercial research/educational terms and is never committed to this repository.

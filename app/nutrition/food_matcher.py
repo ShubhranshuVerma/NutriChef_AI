@@ -7,7 +7,6 @@ matches "egg").
 
 import difflib
 import re
-from functools import lru_cache
 
 import pandas as pd
 
@@ -98,10 +97,6 @@ def pick_ner_name(line: str, ner: list[str]) -> str | None:
     hits = [e for e in ner if e and f" {' '.join(_tokens(e))} " in lowered]
     return max(hits, key=len) if hits else None
 
-
-@lru_cache(maxsize=1)
-def default_matcher() -> IngredientMatcher:
-    return IngredientMatcher()
 
 
 def _clean_description(text: str) -> str:

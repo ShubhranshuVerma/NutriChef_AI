@@ -50,15 +50,3 @@ def score_recipe(user, recipe, model=None, n_interactions=0):
     return weight * probability + (1 - weight) * rule
 
 
-def rank_recipes(user, recipes, model=None, n_interactions=0, top_k=None):
-    """Return recipes sorted by score, each with a 'score' key added."""
-    scored = [
-        {**recipe, "score": round(score_recipe(user, recipe, model, n_interactions), 4)}
-        for recipe in recipes
-    ]
-    scored.sort(key=lambda r: r["score"], reverse=True)
-    return scored[:top_k] if top_k else scored
-
-
-def feature_names():
-    return list(FEATURE_NAMES)

@@ -1,7 +1,7 @@
 # NutriChef AI — Architecture (v1)
 
 > Constraint-aware personalized meal planning & recipe intelligence platform.
-> Status: Phase 1 design. Lives at `docs/architecture.md` in the repo.
+> Status: describes what is built (Phases 0-13). Sections marked *(Phase N)* are planned, not written yet.
 > Nutrition values are estimates. NutriChef is a general wellness / meal-planning tool, not a medical device, and never guarantees allergy safety.
 
 ---
@@ -18,6 +18,9 @@
 ---
 
 ## 2. System context
+
+The finished picture. Today everything left of `SQLite` exists; the UI, the database and
+`/metrics` arrive in Phases 14, 15 and 17.
 
 ```mermaid
 flowchart LR
@@ -43,34 +46,40 @@ flowchart LR
 
 | Layer | Folder | Responsibility | Uses LLM? |
 |---|---|---|---|
-| UI | `ui/` | Forms, results, feedback. Calls API only. | No |
-| API | `app/api/` | Routing, auth, request/response schemas, error mapping | No |
-| Services | `app/services/` | Use-case orchestration: generate recipe, plan meals, record feedback | No (calls graph) |
-| Agents | `app/agents/` | LLM agents + LangGraph workflow | Yes |
-| Nutrition engine | `app/nutrition/` | Unit conversion → grams → nutrients from food DB | No |
-| Validation | `app/validation/` | Allergen, diet, exclusion, nutrition, budget, time checks | No |
-| Pricing / inventory | `app/services/pricing.py`, `inventory.py` | Cost estimation, inventory matching, expiry/waste scores | No |
-| RAG | `app/rag/` | Ingest, chunk, embed, retrieve with sources | Embeddings only |
-| ML | `app/ml/` (inference), `ml/` (training) | Features, ranker, cold-start blending | No |
-| Data access | `app/database/` | SQLAlchemy models, session, repositories | No |
-| Core | `app/core/` | Settings, logging, simple metrics, security, LLM factory | — |
+| API | `app/api/` | Routing, request/response schemas, error mapping | No |
+| Services | `app/services/` | `recipe_service` (Scenario 1), `planner` + `plan_service` (Scenario 2) | No (calls the graph) |
+| Agents | `app/agents/` | 4 LLM agents + the LangGraph workflow | Yes |
+| Nutrition engine | `app/nutrition/` | Parse → grams → nutrients and cost from the food tables | No |
+| Validation | `app/validation/` | Allergen, diet, exclusion, calorie, cost, confidence checks | No |
+| RAG | `app/rag/` | Chunk, embed, retrieve with sources (ChromaDB) | Embeddings only |
+| ML | `app/ml/` (scoring), `ml/evaluation/` (metrics) | Features, ranker, cold-start blend. Training is `scripts/train_ranker.py` | No |
+| Data loaders | `app/datasets/`, `app/processing/` | Read USDA / RecipeNLG / reference files, clean them into recipes | No |
+| Core | `app/core/` | Settings, logging, the Gemini factory | — |
+| UI | `ui/` | *(Phase 15)* | No |
+| Data access | `app/database/` | *(Phase 14)* | No |
+
+Pricing and inventory are not separate modules: prices live in the nutrition calculator
+(`price_per_gram`) and inventory handling is a few functions in the planner. Splitting them out
+would add files without adding clarity.
 
 ---
 
 ## 4. Agents — who does what
 
-| Agent | Type | Input → Output |
-|---|---|---|
-| Requirement Agent | **LLM** (structured output) | free text → `ConstraintSpec` (diet, allergens, exclusions, targets, budget, time, cuisine, inventory, meal type) |
-| Ingredient Agent | Deterministic | raw ingredient names → canonical `food_id`s, flags unsafe/unknown items, expiry priority |
-| Recipe Agent | **LLM** | constraints + inventory + RAG context → N candidate `RecipeDraft`s (ingredients in grams, chosen from allowed foods where possible) |
-| Safety Agent | Deterministic | recipe → `ValidationReport` (hard violations, soft issues, unmapped ingredients) |
-| Critic Agent | **LLM** | recipe + nutrition + validation report → `Critique` (issues, severity, suggested fixes) |
-| Revision Agent | **LLM** | recipe + critique + violations → revised `RecipeDraft` |
-| Meal Planning Agent | Deterministic optimizer (+ Recipe Agent to fill gaps) | pool of ranked safe recipes → N-day plan within budget/targets/variety |
-| Report Agent | Deterministic formatter (+ optional short LLM explanation) | final state → `RecipeResponse` / `MealPlanResponse` with disclaimers & sources |
+Four functions call the LLM, in `app/agents/agents.py`. Everything that must be *correct* is
+deterministic and lives elsewhere.
 
-Only 4 components call the LLM. Everything that must be *correct* is deterministic.
+| Agent | Input → Output | Where |
+|---|---|---|
+| Requirement | free text → `Constraints` (diet, allergies, exclusions, targets) | `extract_requirements` |
+| Recipe | constraints + RAG context → one `RecipeDraft`, quantities in grams | `generate_recipe` |
+| Critic | recipe + our nutrition and check results → `Critique` | `critique_recipe` |
+| Revision | recipe + critique → a fixed `RecipeDraft` | `revise_recipe` |
+
+The deterministic steps around them: RAG search (`app/rag/store.py`), nutrition
+(`app/nutrition/calculator.py`), tagging and checks (`app/validation/checks.py`), ranking
+(`app/ml/ranker.py`) and planning (`app/services/planner.py`). The LLM never decides whether a
+recipe is safe - `check_recipe` does, and its verdict sets the returned status.
 
 ---
 
@@ -78,29 +87,24 @@ Only 4 components call the LLM. Everything that must be *correct* is determinist
 
 ```mermaid
 flowchart TD
-    A["User request + user_id"] --> B["Requirement Agent (LLM)<br/>→ ConstraintSpec"]
-    B --> C["Merge with saved profile<br/>(allergies/exclusions: union only)"]
-    C --> D["Ingredient Agent<br/>canonicalize inventory, drop unsafe items"]
-    D --> E["RAG retrieval<br/>similar safe RecipeNLG recipes + guidance"]
-    E --> F["Recipe Agent (LLM)<br/>3 candidates"]
-    F --> G["Nutrition engine"]
-    G --> H["Safety + constraint validation"]
-    H --> I["ML ranker<br/>pick best valid candidate"]
-    I --> J["Critic Agent (LLM)"]
-    J --> K{"Hard violation or<br/>must-fix critique?"}
-    K -->|"yes, iteration < 2"| L["Revision Agent (LLM)"]
-    L --> G
-    K -->|"no"| M["Report Agent → final recipe"]
-    K -->|"yes, iterations exhausted"| N["Fallback: best safe recipe<br/>from curated library, or clear error"]
-    N --> M
+    A["User request"] --> B["understand<br/>Requirement Agent → Constraints"]
+    B --> C["merge with the saved profile<br/>(allergies/exclusions: union only)"]
+    C --> D["search<br/>RAG, filtered by diet and allergens"]
+    D --> E["write<br/>Recipe Agent → one draft"]
+    E --> F["check<br/>nutrition → tags → check_recipe"]
+    F --> G["critique<br/>Critic Agent"]
+    G --> H{"problems, and fewer<br/>than 2 revisions so far?"}
+    H -->|"yes"| I["revise<br/>Revision Agent"]
+    I --> F
+    H -->|"no"| J["finish<br/>status = ok only if the checks passed"]
 ```
 
-**Graph state (`RecipeState`)**: `request_text, user_id, constraints, inventory, context_docs, candidates, current, nutrition, validation, critique, iteration, status, trace[]`.
+**Graph state** (a plain dict, `app/agents/graph.py`): `request_text, profile, constraints, context, sources, draft, recipe, nutrition, checks, critique, revisions, status, trace[]`.
 
-**Hard constraints** (must pass): allergens, excluded ingredients, diet rules, calorie ceiling, no unmapped ingredients.
-**Soft constraints** (scored, reported): protein/fiber targets, cooking time, cost, cuisine, inventory usage, skill level.
+**Hard rules** (must pass, or the status is `failed`): allergens, excluded ingredients, diet rules, the calorie and cost ceilings, nutrition confidence below `high`, and macros that exceed the calories.
+**Soft rules** (reported as warnings): protein target, cooking time, cuisine.
 
-**Allergen check detail**: ingredient → `food_id` → `food_allergens` table, plus an alias/derivative list (e.g. soy → soya, tofu, tempeh, edamame, soy sauce, soy lecithin; whey → milk). Word-boundary matching, never raw substring (reference-repo bug: "soy milk" matched "milk").
+**Allergen check detail**: each ingredient's name plus its catalog name is matched against the keyword table with whole-word matching and a plural tolerance, so "eggplant" never counts as "egg". An exceptions list stops "coconut milk" counting as milk (the reference repo's substring matching got both of these wrong).
 
 ---
 
@@ -108,16 +112,14 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A["Request: 7 days, vegetarian,<br/>high protein, ≤ ₹1500"] --> B["Requirement Agent → ConstraintSpec"]
-    B --> C["Inventory analysis<br/>quantities + expiry"]
-    C --> D["Candidate pool<br/>RecipeNLG + curated library (+ LLM-generated if pool too small)"]
-    D --> E["Safety filter (hard constraints)"]
-    E --> F["ML ranker + personalization<br/>(feedback, cold-start blend)"]
-    F --> G["Greedy planner<br/>daily targets · weekly budget · variety · use expiring items first"]
-    G --> H["Plan validation<br/>daily nutrition · total cost · allergens"]
-    H -->|"fails"| G
-    H --> I["Shopping list = needs − inventory<br/>priced in ₹"]
-    I --> J["Report: 7-day plan + totals + waste savings"]
+    A["Request: 7 days, vegetarian,<br/>high protein, ≤ ₹1500"] --> B["Requirement Agent → Constraints<br/>(skipped if the fields are given directly)"]
+    B --> C["recipe library<br/>library_ready recipes only"]
+    C --> D["safety filter<br/>check_recipe per recipe"]
+    D --> E["price filter<br/>drop recipes we cannot cost"]
+    E --> F["score<br/>ranker + at-home + expiring + protein"]
+    F --> G["fill each day and slot<br/>variety, running budget"]
+    G --> H["shopping list = needs − inventory,<br/>priced in ₹"]
+    H --> I["plan + totals + what was skipped"]
 ```
 
 Planner scoring per slot (`app/services/planner.py`):
@@ -192,17 +194,19 @@ flowchart LR
 |---|---|
 | Task | Pointwise: P(user likes recipe) — label = like / save / rating ≥ 4 (positive) vs dislike / skip / rating ≤ 2 (negative) |
 | Models | Baselines: popularity, rule-based score → Logistic Regression → Gradient Boosting |
-| Features | calorie_match, protein_match, ingredient_overlap, inventory_coverage, diet_match, cuisine_pref, time_fit, budget_fit, skill_fit, user_cuisine_affinity, user_ingredient_affinity, recipe_popularity, user_avg_rating |
+| Features | 11, in `app/ml/features.py`: calorie_fit, protein_fit, cost_fit, time_fit, cuisine_match, diet_match, ingredient_overlap, inventory_use, is_indian, is_curated, n_ingredients_scaled |
 | Data | Simulated users & interactions (labeled `synthetic=true`) + real app feedback over time |
 | Split | Per-user time-based leave-last-out (no leakage) |
 | Metrics | Precision@K, Recall@K, HitRate@K, NDCG@K (K = 5, 10), plus ROC-AUC |
 | Cold start | users with < 5 interactions: `score = α·rule_score + (1−α)·model_score`, α = 1 − n/5 |
 | Tracking | MLflow (local SQLite file `mlflow.db`): params and metrics per run; the chosen model is saved to `ml/artifacts/ranker.joblib` |
-| Serving | The API loads `ml/artifacts/ranker.joblib` at startup; if it is missing, the rule score is used |
+| Serving | `app/ml/ranker.py` loads `ml/artifacts/ranker.joblib` on demand; if it is missing, the rule score is used |
 
 ---
 
 ## 9. Data model (SQLite via SQLAlchemy)
+
+*(Phase 14 - not built yet. The tables below are the plan.)*
 
 ```mermaid
 erDiagram
@@ -263,11 +267,27 @@ Tables are created at startup with SQLAlchemy `Base.metadata.create_all()` (no m
 | GET | `/health` | liveness + DB/vector store/model status | – |
 | GET | `/metrics` | Simple JSON counters and timings | internal |
 
-Errors: consistent `{"error": {"code", "message", "request_id"}}`; internal details only in logs.
+Errors: FastAPI's own `{"detail": ...}` shape everywhere - 422 for input that fails validation,
+503 when a dependency (Gemini key, recipe library) is missing, 500 with a fixed message for
+anything unexpected. Internal details and tracebacks only ever go to the logs.
+
+**Built in Phase 13** (the rest arrives with the database in Phase 14, so nothing is behind auth yet):
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/health` | what is ready: recipes, ranking model, search index, LLM key |
+| POST | `/api/v1/recipes/generate` | Scenario 1 - free text to one checked recipe |
+| POST | `/api/v1/plans/generate` | Scenario 2 - a meal plan in a budget, using the inventory |
+
+Both endpoints are thin: validate with Pydantic, call a service
+(`app/services/recipe_service.py`, `app/services/plan_service.py`), return the result. The
+services are shared with the demo scripts, so the API and the command line run the same code.
 
 ---
 
 ## 11. Observability
+
+*(Phase 17 - not built yet. Today there is Python logging with secret redaction.)*
 
 Kept deliberately simple: an in-memory counters dictionary exposed as JSON at `/metrics`, plus Python's built-in `logging`.
 
@@ -297,6 +317,8 @@ Logs: plain text lines (`time | level | module | message`) including a request i
 
 ## 13. Deployment
 
+*(Phases 18-20 - not built yet.)*
+
 ```mermaid
 flowchart LR
     Dev["Mac (local dev)"] -->|"git push"| GH["GitHub repo"]
@@ -316,41 +338,47 @@ flowchart LR
 
 ## 14. Repository layout
 
+What actually exists after Phase 13. Every file here is used; anything that stopped being used
+has been deleted.
+
 ```text
 nutrichef-ai/
 ├── app/
-│   ├── main.py                 # FastAPI app factory
-│   ├── api/                    # routers: auth, users, recipes, meal_plans, nutrition, feedback, health
-│   ├── agents/                 # agents.py (4 LLM agents), prompts.py, graph.py
-│   ├── core/                   # config.py, logging.py, metrics.py, security.py, llm.py
-│   ├── schemas/                # Pydantic: constraints, recipe, nutrition, validation, plan, user, feedback
-│   ├── services/               # recipe_service, meal_plan_service, feedback_service, pricing, inventory, planner
-│   ├── nutrition/              # parsing.py, food_matcher.py, units.py, calculator.py
-│   ├── processing/             # recipes.py (cleaning), features.py (static recipe features)
-│   ├── validation/             # checks.py (allergens, diets, constraints)
-│   ├── rag/                    # ingest.py, splitter.py, embeddings.py, store.py, retriever.py
-│   ├── datasets/               # usda.py, recipenlg.py, reference.py (data loaders)
-│   ├── ml/                     # features.py, ranker.py, cold_start.py
-│   └── database/               # base.py, session.py, models.py, repositories/
-├── ui/                         # streamlit_app.py, pages/, api_client.py
+│   ├── api/          main.py (the app), routes.py (3 endpoints), schemas.py (input validation)
+│   ├── agents/       prompts.py, agents.py (4 LLM agents), graph.py (LangGraph workflow)
+│   ├── core/         config.py, logging.py, llm.py
+│   ├── schemas/      recipe.py (Constraints, RecipeDraft, Critique - the LLM output contract)
+│   ├── services/     recipe_service.py (Scenario 1), planner.py + plan_service.py (Scenario 2)
+│   ├── nutrition/    parsing.py, units.py, food_matcher.py, calculator.py
+│   ├── processing/   recipes.py (cleaning), features.py (cuisine/course/time guesses)
+│   ├── validation/   checks.py (allergens, diets, constraints - the safety layer)
+│   ├── rag/          store.py (ChromaDB: recipes + knowledge base)
+│   ├── datasets/     usda.py, recipenlg.py, reference.py (loaders only)
+│   ├── ml/           features.py (11 features), ranker.py (scoring + cold start)
+│   └── database/     (Phase 14)
+├── ui/               (Phase 15)
 ├── ml/
-│   ├── training/               # simulate_interactions.py, build_dataset.py, train.py
-│   ├── evaluation/             # metrics.py (P@K, R@K, HR, NDCG), evaluate.py
-│   └── artifacts/              # git-ignored
+│   ├── evaluation/   metrics.py (Precision@K, Recall@K, Hit Rate, NDCG@K)
+│   └── artifacts/    ranker.joblib (git-ignored)
 ├── data/
-│   ├── reference/  knowledge_base/          # small curated files (committed)
-│   ├── raw/  processed/  interactions/      # git-ignored
-├── scripts/                    # download_usda.py, seed_db.py, ingest_kb.py, demo_*.py
-├── tests/
-│   ├── unit/ integration/ api/ agents/ rag/ ml/
-│   └── conftest.py             # fake LLM, temp DB, fake embeddings
-├── docker/                     # api.Dockerfile, ui.Dockerfile
-├── docs/                       # architecture.md, data_sources.md
-├── notebooks/
-├── docker-compose.yml  Jenkinsfile  requirements.txt  requirements-dev.txt
-├── pytest.ini                  # pytest config
-├── .env.example  .gitignore
+│   ├── reference/    8 CSVs - catalog, allergens, diets, prices, curated recipes (committed)
+│   ├── knowledge_base/  6 markdown docs for RAG (committed)
+│   └── raw/ processed/ interactions/   (git-ignored, rebuilt by the scripts)
+├── scripts/          the data pipeline, in order, plus check.py and 2 demo scripts
+├── tests/            unit/ integration/ api/ agents/ rag/ ml/ + conftest.py
+├── docker/           (Phase 18)
+├── docs/             architecture.md, data_sources.md
+├── requirements.txt  requirements-dev.txt  pytest.ini  .env.example  .gitignore
 └── README.md
+```
+
+The pipeline scripts run once, in this order, and rebuild everything git-ignored:
+
+```text
+download_usda -> build_ingredient_foods ─┐
+sample_recipenlg -> process_recipes ─────┴─> compute_nutrition -> tag_recipes
+                                                 ├─> simulate_users -> train_ranker
+                                                 └─> build_index
 ```
 
 ---

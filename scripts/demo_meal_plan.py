@@ -8,18 +8,14 @@ Run from the project root (after scripts.tag_recipes):
 
 import argparse
 
-from app.agents.agents import extract_requirements
-from app.core.llm import get_llm
 from app.core.logging import configure_logging
-from app.services import planner
+from app.services import plan_service, planner
 
 DEFAULT_REQUEST = ("Create a 7-day vegetarian high-protein meal plan under Rs 1500 "
                    "using ingredients I already have.")
 
 # Fixed constraints for --no-llm, so the demo also runs offline.
 FALLBACK_REQUEST = {"diet": "vegetarian", "allergies": [], "exclude": [], "min_protein_g": 25}
-
-DAILY_KCAL = 2000  # a normal day, used only to aim for sensibly sized meals
 
 # What is in the fridge today. In the app this comes from the user's inventory.
 PANTRY = [
@@ -34,28 +30,6 @@ PANTRY = [
 ]
 
 
-def understand(text, use_llm):
-    """Free text -> the request dict the checks use, and a profile for the ranker."""
-    if not use_llm:
-        return dict(FALLBACK_REQUEST)
-    constraints = extract_requirements(text, get_llm())
-    return {"diet": constraints.diet, "allergies": constraints.allergies,
-            "exclude": constraints.exclude, "min_protein_g": constraints.min_protein_g,
-            "max_kcal": constraints.max_kcal, "max_cook_minutes": constraints.max_cook_minutes}
-
-
-def user_profile(request, budget_inr, meals, days):
-    """What the ranker uses. Without a calorie limit we aim for a normal-sized day."""
-    per_meal_kcal = DAILY_KCAL / (meals / days) if meals else None
-    return {
-        "diet": request.get("diet"),
-        "protein_target_g": request.get("min_protein_g"),
-        "kcal_target": request.get("max_kcal") or round(per_meal_kcal),
-        "budget_per_meal_inr": round(budget_inr / meals, 2) if budget_inr and meals else None,
-        "max_cook_minutes": request.get("max_cook_minutes"),
-    }
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--request", default=DEFAULT_REQUEST)
@@ -67,14 +41,12 @@ def main():
     args = parser.parse_args()
     configure_logging()
 
-    deps = planner.load_dependencies()
-    request = understand(args.request, use_llm=not args.no_llm)
     slots = [s.strip() for s in args.slots.split(",") if s.strip()]
-    profile = user_profile(request, args.budget, args.days * len(slots), args.days)
+    request = (dict(FALLBACK_REQUEST) if args.no_llm
+               else plan_service.constraints_from_text(args.request))
 
-    plan = planner.make_plan(deps["recipes"], profile, request, deps["rules"], deps["tables"],
-                             days=args.days, slots=slots, budget_inr=args.budget,
-                             inventory=PANTRY)
+    plan = plan_service.make_plan(request, days=args.days, slots=slots,
+                                  budget_inr=args.budget, inventory=PANTRY)
 
     print(f"\nREQUEST: {args.request}")
     print(f"UNDERSTOOD AS: {request}")
@@ -95,11 +67,10 @@ def main():
           f"(budget Rs {args.budget:.0f}, within budget: {plan['within_budget']})")
     print(f"PER DAY: about {totals['avg_kcal_per_day']} kcal and "
           f"{totals['avg_protein_per_day']} g protein")
-    if request.get("min_protein_g"):
-        target = request["min_protein_g"] * len(slots)
-        met = "met" if totals["avg_protein_per_day"] >= target else "NOT met"
-        print(f"PROTEIN TARGET: {target} g per day ({request['min_protein_g']} g x "
-              f"{len(slots)} meals) - {met}")
+    if plan["protein_target_per_day_g"]:
+        met = "met" if plan["protein_target_met"] else "NOT met"
+        print(f"PROTEIN TARGET: {plan['protein_target_per_day_g']} g per day "
+              f"({request['min_protein_g']} g x {len(slots)} meals) - {met}")
     if plan["skipped"]:
         print(f"NOT FILLED: {len(plan['skipped'])} slots "
               f"(e.g. {plan['skipped'][0]['slot']} on day {plan['skipped'][0]['day']})")

@@ -24,12 +24,6 @@ def test_good_recipe_scores_higher_than_poor_one():
     assert ranker.rule_score(USER, GOOD) > ranker.rule_score(USER, POOR)
 
 
-def test_rank_recipes_sorts_and_limits():
-    ranked = ranker.rank_recipes(USER, [POOR, GOOD], top_k=1)
-    assert [r["recipe_id"] for r in ranked] == ["r1"]
-    assert 0 <= ranked[0]["score"] <= 1
-
-
 class FakeModel:
     """Always says 'likes the second recipe', to test the cold-start blend."""
 

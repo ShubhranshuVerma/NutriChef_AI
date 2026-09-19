@@ -16,6 +16,7 @@
 6. **Simple first.** One process for the API, SQLite + Chroma files, one EC2 host. No Kubernetes, Kafka, Spark or Airflow.
 
 ---
+
 ## 2. System context
 
 ```mermaid
@@ -307,7 +308,7 @@ nutrichef-ai/
 ├── app/
 │   ├── main.py                 # FastAPI app factory
 │   ├── api/                    # routers: auth, users, recipes, meal_plans, nutrition, feedback, health
-│   ├── agents/                 # requirement.py, recipe.py, critic.py, revision.py, prompts.py, graph.py, meal_plan_graph.py
+│   ├── agents/                 # agents.py (4 LLM agents), prompts.py, graph.py
 │   ├── core/                   # config.py, logging.py, metrics.py, security.py, llm.py
 │   ├── schemas/                # Pydantic: constraints, recipe, nutrition, validation, plan, user, feedback
 │   ├── services/               # recipe_service, meal_plan_service, feedback_service, pricing, inventory, planner

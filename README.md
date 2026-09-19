@@ -18,7 +18,8 @@ NutriChef turns requests like *"I'm vegetarian, allergic to soy, have paneer and
 | 6 Allergen, diet & constraint checks | ✅ |
 | 7 ML ranking & personalization | ✅ |
 | 8 RAG search (ChromaDB) | ✅ |
-| 9+ Agents, API, UI, MLOps | ⏳ |
+| 9 LLM agents | ✅ |
+| 10+ Agent workflow, API, UI, MLOps | ⏳ |
 
 See [`docs/architecture.md`](docs/architecture.md).
 

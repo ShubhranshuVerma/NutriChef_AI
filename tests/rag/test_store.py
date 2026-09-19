@@ -96,3 +96,10 @@ def test_filter_excludes_allergens_and_wrong_diets(recipe_store):
 def test_calorie_filter(recipe_store):
     hits = store.search(recipe_store, "bhurji", k=5, where=store.build_filter(max_kcal=300))
     assert [h["metadata"]["recipe_id"] for h in hits] == ["r3"]
+
+
+def test_header_is_stripped_from_guidance():
+    text = "---\ntopic: allergens\ntitle: x\n---\n\n# Food allergens\n\nMilk is an allergen."
+    assert store.strip_header(text).startswith("# Food allergens")
+    documents = store.guidance_documents()
+    assert not documents[0].page_content.startswith("---")

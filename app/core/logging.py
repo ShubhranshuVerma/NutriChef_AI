@@ -52,7 +52,8 @@ def configure_logging(level: str | None = None) -> None:
     root.setLevel(level)
 
     # Hide INFO chatter from third-party libraries.
-    for noisy in ("httpx", "httpcore", "urllib3", "chromadb", "sentence_transformers", "mlflow"):
+    for noisy in ("httpx", "httpcore", "urllib3", "chromadb", "sentence_transformers", "mlflow",
+                  "google_genai", "huggingface_hub"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
 

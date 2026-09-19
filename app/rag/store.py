@@ -8,6 +8,7 @@
 Search only helps the LLM write better recipes. The deterministic checks in
 app/validation still decide what is safe.
 """
+
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 
@@ -35,6 +36,7 @@ def open_collection(name, embeddings=None, directory=None):
     return Chroma(collection_name=name, embedding_function=embeddings or get_embeddings(),
                   persist_directory=directory)
 
+
 # ---------- turning our data into documents ----------
 
 def split_text(text, chunk_size=CHUNK_SIZE):
@@ -54,10 +56,19 @@ def split_text(text, chunk_size=CHUNK_SIZE):
     return chunks
 
 
+def strip_header(text):
+    """Remove the '---' header block at the top of a knowledge base file."""
+    if text.startswith("---"):
+        end = text.find("\n---", 3)
+        if end != -1:
+            return text[end + 4 :].strip()
+    return text
+
+
 def guidance_documents(files=None):
     documents = []
     for path in files if files is not None else knowledge_base_files():
-        text = path.read_text(encoding="utf-8")
+        text = strip_header(path.read_text(encoding="utf-8"))
         for i, chunk in enumerate(split_text(text)):
             documents.append(Document(
                 page_content=chunk,

@@ -145,11 +145,15 @@ def describe_constraints(constraints):
 
 
 def describe_recipe(recipe):
+    """Works with a RecipeDraft or with our recipe dicts (which call steps 'directions')."""
     if isinstance(recipe, RecipeDraft):
         recipe = recipe.model_dump()
-    ingredients = "\n".join(f"- {i}" for i in recipe["ingredients"])
-    steps = "\n".join(f"{i + 1}. {s}" for i, s in enumerate(recipe["steps"]))
-    return f"{recipe['title']} (serves {recipe['servings']})\n{ingredients}\n{steps}"
+    lines = []
+    for item in recipe["ingredients"]:
+        lines.append(f"- {item['raw'] if isinstance(item, dict) else item}")
+    steps = recipe.get("steps") or recipe.get("directions", [])
+    numbered = "\n".join(f"{i + 1}. {s}" for i, s in enumerate(steps))
+    return f"{recipe['title']} (serves {recipe['servings']})\n" + "\n".join(lines) + f"\n{numbered}"
 
 
 def format_context(hits, limit=3):

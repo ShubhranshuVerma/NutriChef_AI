@@ -19,7 +19,8 @@ NutriChef turns requests like *"I'm vegetarian, allergic to soy, have paneer and
 | 7 ML ranking & personalization | ✅ |
 | 8 RAG search (ChromaDB) | ✅ |
 | 9 LLM agents | ✅ |
-| 10+ Agent workflow, API, UI, MLOps | ⏳ |
+| 10 Agent workflow (LangGraph) | ✅ |
+| 11+ Meal planning, API, UI, MLOps | ⏳ |
 
 See [`docs/architecture.md`](docs/architecture.md).
 
@@ -51,6 +52,12 @@ data/       reference/ + knowledge_base/ (committed); raw/, processed/, interact
 scripts/    one-off utilities (setup checks, data download, seeding)
 tests/      unit, integration, api, agents, rag, ml
 docs/       architecture, data sources
+```
+
+## Try it
+
+```bash
+python -m scripts.demo_recipe     # one request -> checked recipe (uses your Gemini key)
 ```
 
 ## Data

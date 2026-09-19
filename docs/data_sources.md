@@ -11,7 +11,7 @@ Every external dataset is listed here **before** it is used. Downloaded and gene
 | Allergen lists | `data/reference/allergens.csv`, `allergen_keywords.csv`, `keyword_exceptions.csv` | Allergen validation | Compiled from U.S. FDA and FSSAI public regulations | Committed |
 | Diet rules | `data/reference/diets.csv`, `food_group_keywords.csv` | Diet validation | Written for this project | Committed |
 | Prices (₹) | `data/reference/prices_inr.csv` | Budget estimates | Seeded from the mealora-ai-agent reference repo (CC BY 4.0 per its README) plus NutriChef estimates. **Unverified** — update from a trusted source (e.g. Dept. of Consumer Affairs Price Monitoring Cell) before relying on them. | Committed |
-| Curated Indian recipes (30) | `data/reference/curated_indian_recipes.csv` | Indian coverage for ranking and meal plans | Written for this project | Committed |
+| Curated Indian recipes (50) | `data/reference/curated_indian_recipes.csv` | Indian coverage for ranking and meal plans | Written for this project | Committed |
 | Ingredient catalog (~155) | `data/reference/ingredient_catalog.csv` → `data/processed/ingredient_foods.csv` | Canonical ingredients, aliases (incl. Hindi names), USDA food link, piece weights, densities | Written for this project; USDA descriptions from SR Legacy. Rows marked `usda_proxy` use a stand-in food (e.g. paneer → whole-milk mozzarella) | Committed |
 | Knowledge base (6 docs) | `data/knowledge_base/*.md` | RAG guidance: allergens, diets, nutrition, substitutions, food safety, cooking | Summaries written for this project; each file lists its sources | Committed |
 

@@ -26,7 +26,7 @@ INDIAN_INGREDIENTS = {"garam_masala", "ghee", "paneer", "toor_dal", "moong_dal",
 
 MEAL_TYPE_KEYWORDS = [  # first match wins
     ("beverage", ["punch", "lemonade", "tea", "coffee", "shake", "milkshake", "drink", "cocktail",
-                  "lassi", "smoothie"]),
+                  "lassi", "smoothie", "hot chocolate", "hot cocoa", "chai", "latte", "mocktail"]),
     ("dessert", ["cake", "cakes", "cookie", "cookies", "brownie", "brownies", "pie", "pudding",
                  "fudge", "candy", "frosting", "icing", "cheesecake", "cobbler", "tart", "dessert",
                  "halwa", "ladoo", "kheer", "ice cream", "bars", "cupcakes", "truffles", "crisp"]),
@@ -34,9 +34,9 @@ MEAL_TYPE_KEYWORDS = [  # first match wins
                    "granola", "muffin", "muffins", "french toast", "poha", "upma", "chilla",
                    "paratha", "porridge", "scramble", "breakfast", "bhurji", "oats"]),
     ("snack", ["dip", "chips", "cracker", "crackers", "popcorn", "chaat", "snack", "appetizer",
-               "spread", "tikka", "salad"]),
+               "spread", "tikka", "salad", "queso", "hummus", "guacamole", "nachos", "pakora"]),
     ("side", ["raita", "sauce", "dressing", "rolls", "biscuits", "bread", "gravy", "relish",
-              "pickle", "chutney", "rice"]),
+              "pickle", "chutney", "rice", "salsa", "creamed", "pickles", "slaw", "coleslaw"]),
 ]
 
 

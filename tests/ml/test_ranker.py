@@ -34,7 +34,8 @@ class FakeModel:
     """Always says 'likes the second recipe', to test the cold-start blend."""
 
     def predict_proba(self, rows):
-        return [[0.0, 1.0] if row[0] < 0.5 else [1.0, 0.0] for row in rows]
+        # `rows` is a DataFrame, the same shape the real model was trained on.
+        return [[0.0, 1.0] if row[0] < 0.5 else [1.0, 0.0] for row in rows.to_numpy()]
 
 
 def test_cold_start_uses_rules_then_shifts_to_the_model():

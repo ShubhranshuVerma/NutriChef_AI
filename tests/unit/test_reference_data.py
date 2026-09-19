@@ -57,7 +57,9 @@ def test_exceptions_point_to_known_codes():
 def test_prices_are_valid():
     prices = reference.load_prices()
     assert prices["item"].is_unique
-    assert (prices["price_inr"] > 0).all()
+    # Only tap water is allowed to be free; everything else must cost something.
+    assert (prices["price_inr"] >= 0).all()
+    assert set(prices.loc[prices["price_inr"] == 0, "item"]) <= {"water"}
     assert (prices["grams_per_unit"] > 0).all()
     assert set(prices["per_unit"]) <= reference.VALID_PRICE_UNITS
     assert prices["source"].str.len().gt(0).all()

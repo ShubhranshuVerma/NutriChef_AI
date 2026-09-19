@@ -7,6 +7,7 @@
 import json
 
 import joblib
+import pandas as pd
 
 from app.core.config import PROJECT_ROOT
 from app.ml.features import FEATURE_NAMES, build_features, feature_row
@@ -41,7 +42,10 @@ def score_recipe(user, recipe, model=None, n_interactions=0):
     rule = rule_score(user, recipe)
     if model is None:
         return rule
-    probability = model.predict_proba([feature_row(user, recipe)])[0][1]
+    # A DataFrame with the same column names the model was trained on, so sklearn
+    # does not warn about missing feature names.
+    row = pd.DataFrame([feature_row(user, recipe)], columns=FEATURE_NAMES)
+    probability = model.predict_proba(row)[0][1]
     weight = min(n_interactions, COLD_START_INTERACTIONS) / COLD_START_INTERACTIONS
     return weight * probability + (1 - weight) * rule
 

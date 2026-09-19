@@ -20,7 +20,7 @@ def curated(matcher):
 
 
 def test_curated_recipes_are_library_ready(curated):
-    assert len(curated) == 30
+    assert len(curated) == len(reference.load_curated_recipes())  # every one survives processing
     assert all(r["library_ready"] for r in curated)
     paneer = next(r for r in curated if r["title"] == "Paneer Bhurji")
     assert paneer["origin"] == "curated"
@@ -74,7 +74,7 @@ def test_recipenlg_cap_keeps_all_curated(matcher, curated):
     web = [_record(matcher, f"Cake {name}", ["1 egg", "1 c. milk", "1 c. flour"])
            for name in ["alpha", "beta", "gamma", "delta", "omega"]]
     kept, _ = recipes.clean(curated + web, max_recipenlg=2)
-    assert sum(r["origin"] == "curated" for r in kept) == 30
+    assert sum(r["origin"] == "curated" for r in kept) == len(curated)
     assert sum(r["origin"] == "recipenlg" for r in kept) == 2
 
 
@@ -113,7 +113,10 @@ def test_estimate_minutes(steps, minutes):
 @pytest.mark.parametrize(
     ("title", "meal_type"),
     [("Chocolate Chip Cookies", "dessert"), ("Fluffy Pancakes", "breakfast"),
-     ("Spinach Dip", "snack"), ("Beef Stew", "main"), ("Mango Lassi", "beverage")],
+     ("Spinach Dip", "snack"), ("Beef Stew", "main"), ("Mango Lassi", "beverage"),
+     # These used to fall through to "main" and were served as dinner.
+     ("Easy Vegan Hot Chocolate", "beverage"), ("Corn And Black Bean Salsa", "side"),
+     ("The Best Creamed Peas", "side"), ("Chili Con Queso", "snack")],
 )
 def test_guess_meal_type(title, meal_type):
     assert features.guess_meal_type(title) == meal_type

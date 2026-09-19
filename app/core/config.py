@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     chroma_dir: Path = Path("data/processed/chroma_db")
     recipenlg_csv_path: Path = Path("data/raw/RecipeNLG/full_dataset.csv")
-    recipenlg_subset_size: int = Field(default=5000, gt=0)
+    recipenlg_subset_size: int = Field(default=15000, gt=0)
 
     # ---------- Database ----------
     database_url: str = "sqlite:///data/processed/nutrichef.db"

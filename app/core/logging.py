@@ -56,6 +56,9 @@ def configure_logging(level: str | None = None) -> None:
                   "google_genai", "huggingface_hub"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
+    # This one warns on every single call about a feature we do not use.
+    logging.getLogger("google_genai.models").setLevel(logging.ERROR)
+
 
 def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(name)

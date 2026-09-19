@@ -17,6 +17,8 @@ Rules:
 - exclude is for foods they simply do not want (e.g. "whey", "mushroom").
 - have_ingredients is what they say they already have at home.
 - course is one of: main, breakfast, snack, side, dessert, beverage.
+- If they say "high protein" without a number, set min_protein_g to 25.
+  If they say "low calorie" without a number, set max_kcal to 400.
 
 Answer with JSON only, no explanation:
 {{"diet": null, "allergies": [], "exclude": [], "have_ingredients": [], "course": null,

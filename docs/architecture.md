@@ -120,9 +120,22 @@ flowchart TD
     I --> J["Report: 7-day plan + totals + waste savings"]
 ```
 
-Planner scoring per slot:
-`score = w1·ranker_prob + w2·nutrition_fit + w3·inventory_use + w4·expiry_urgency − w5·cost − w6·repeat_penalty`
-Weights live in config. A recipe isn't repeated within 2 days; total cost must be ≤ budget (hard).
+Planner scoring per slot (`app/services/planner.py`):
+`score = ranker_score + 0.3 · share_of_ingredients_at_home + 0.2 · uses_something_expiring
+         + 0.4 · reaches_the_protein_target`
+
+The ranker score is the Phase 7 model (rule score blended in for new users). Filtering happens
+before scoring: only recipes that pass `check_recipe` for this person enter the pool, so
+allergens, diet and cost limits are never traded off against a score. When a budget is given,
+recipes whose `cost_coverage` is below 0.8 are also dropped: most of their ingredients have no
+price, so they look almost free and would otherwise win every slot (the filter is skipped if it
+would leave too few recipes to plan with). Slots are filled greedily,
+day by day, and variety is tried in three steps: a recipe not yet in the plan at all; failing
+that, one not eaten for 3 days; failing that, anything not already eaten today. The running
+budget is a hard limit; a slot that cannot be filled is reported in `skipped` rather than
+filled unsafely.
+The shopping list subtracts what is already at home from what the plan needs and prices the
+rest in ₹.
 
 ---
 

@@ -20,7 +20,8 @@ NutriChef turns requests like *"I'm vegetarian, allergic to soy, have paneer and
 | 8 RAG search (ChromaDB) | ✅ |
 | 9 LLM agents | ✅ |
 | 10 Agent workflow (LangGraph) | ✅ |
-| 11+ Meal planning, API, UI, MLOps | ⏳ |
+| 11–12 Meal planning, inventory & budget | ✅ |
+| 13+ API, database, UI, MLOps | ⏳ |
 
 See [`docs/architecture.md`](docs/architecture.md).
 
@@ -57,7 +58,10 @@ docs/       architecture, data sources
 ## Try it
 
 ```bash
-python -m scripts.demo_recipe     # one request -> checked recipe (uses your Gemini key)
+python -m scripts.demo_recipe        # Scenario 1: one request -> checked recipe (uses your Gemini key)
+python -m scripts.demo_meal_plan     # Scenario 2: 7-day plan in a budget + shopping list
+python -m scripts.demo_meal_plan --no-llm --days 3 --budget 800
+python -m scripts.demo_meal_plan --slots breakfast,lunch,dinner,snack   # fuller days
 ```
 
 ## Data

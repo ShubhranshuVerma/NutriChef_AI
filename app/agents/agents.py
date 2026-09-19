@@ -10,6 +10,7 @@ import re
 from pydantic import ValidationError
 
 from app.agents import prompts
+from app.core.llm import answer_text, invoke_with_retry
 from app.core.logging import get_logger
 from app.schemas.recipe import ALLERGENS, DIETS, Constraints, Critique, RecipeDraft
 
@@ -28,30 +29,11 @@ def parse_json(text):
     return json.loads(text[start : end + 1])
 
 
-def answer_text(answer):
-    """Get plain text out of an LLM answer.
-
-    Newer LangChain models return `.content` as a list of blocks such as
-    [{"type": "text", "text": "..."}] instead of a plain string.
-    """
-    content = getattr(answer, "content", answer)
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts = []
-        for block in content:
-            if isinstance(block, str):
-                parts.append(block)
-            elif isinstance(block, dict) and "text" in block:
-                parts.append(block["text"])
-        return "\n".join(parts)
-    return str(content)
-
 
 def ask(llm, prompt, model, retries=1):
     """Call the LLM and turn the answer into `model`. Retries once if it is malformed."""
     for attempt in range(retries + 1):
-        text = answer_text(llm.invoke(prompt))
+        text = answer_text(invoke_with_retry(llm, prompt))
         try:
             return model(**parse_json(text))
         except (ValueError, ValidationError, TypeError) as error:
@@ -133,14 +115,28 @@ def revise_recipe(constraints, recipe, critique, llm):
 
 # ---------- helpers ----------
 
+# Field names alone were being misread - the critic treated "have_ingredients"
+# as a list of ingredients the recipe MUST contain.
+LABELS = {
+    "diet": "diet (a hard rule)",
+    "allergies": "allergic to (never use, in any form)",
+    "exclude": "does not want",
+    "have_ingredients": "already has at home (nice to use, NOT required)",
+    "max_kcal": "at most this many kcal per serving",
+    "min_protein_g": "at least this much protein per serving (g)",
+    "max_cook_minutes": "at most this many minutes",
+    "max_cost_inr": "at most this many rupees per serving",
+}
+
+
 def describe_constraints(constraints):
-    """Constraints as short lines, so prompts stay readable."""
-    data = constraints.model_dump()
+    """Constraints as short labelled lines, so prompts stay readable and unambiguous."""
     lines = []
-    for key, value in data.items():
+    for key, value in constraints.model_dump().items():
         if value in (None, [], ""):
             continue
-        lines.append(f"- {key}: {', '.join(map(str, value)) if isinstance(value, list) else value}")
+        text = ", ".join(map(str, value)) if isinstance(value, list) else value
+        lines.append(f"- {LABELS.get(key, key)}: {text}")
     return "\n".join(lines) or "- no special requirements"
 
 

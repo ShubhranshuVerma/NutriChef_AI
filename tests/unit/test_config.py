@@ -68,3 +68,19 @@ def test_production_requires_llm_key(monkeypatch):
 
 def test_get_settings_is_cached():
     assert get_settings() is get_settings()
+
+
+def test_check_warns_when_the_shell_shadows_the_env_file(tmp_path, monkeypatch):
+    """The trap that has cost us three debugging sessions."""
+    from scripts import check
+
+    env_file = tmp_path / ".env"
+    env_file.write_text("GEMINI_MODEL=from-the-file\nLOG_LEVEL=INFO\n# a comment\n")
+    monkeypatch.setattr(check, "PROJECT_ROOT", tmp_path)
+
+    monkeypatch.setenv("GEMINI_MODEL", "from-the-shell")
+    monkeypatch.setenv("LOG_LEVEL", "INFO")          # same value, so not a surprise
+    assert check.shadowed_by_the_shell() == ["GEMINI_MODEL"]
+
+    monkeypatch.delenv("GEMINI_MODEL")
+    assert check.shadowed_by_the_shell() == []

@@ -1,7 +1,7 @@
 # NutriChef AI — Architecture (v1)
 
 > Constraint-aware personalized meal planning & recipe intelligence platform.
-> Status: describes what is built (Phases 0-13). Sections marked *(Phase N)* are planned, not written yet.
+> Status: describes what is built (Phases 0-14). Sections marked *(Phase N)* are planned, not written yet.
 > Nutrition values are estimates. NutriChef is a general wellness / meal-planning tool, not a medical device, and never guarantees allergy safety.
 
 ---
@@ -19,8 +19,8 @@
 
 ## 2. System context
 
-The finished picture. Today everything left of `SQLite` exists; the UI, the database and
-`/metrics` arrive in Phases 14, 15 and 17.
+The finished picture. Everything here exists except the Streamlit UI (Phase 15) and
+`/metrics` (Phase 17).
 
 ```mermaid
 flowchart LR
@@ -56,7 +56,7 @@ flowchart LR
 | Data loaders | `app/datasets/`, `app/processing/` | Read USDA / RecipeNLG / reference files, clean them into recipes | No |
 | Core | `app/core/` | Settings, logging, the Gemini factory | — |
 | UI | `ui/` | *(Phase 15)* | No |
-| Data access | `app/database/` | *(Phase 14)* | No |
+| Data access | `app/database/` | `models.py` (4 tables) and `session.py` | No |
 
 Pricing and inventory are not separate modules: prices live in the nutrition calculator
 (`price_per_gram`) and inventory handling is a few functions in the planner. Splitting them out
@@ -75,6 +75,17 @@ deterministic and lives elsewhere.
 | Recipe | constraints + RAG context → one `RecipeDraft`, quantities in grams | `generate_recipe` |
 | Critic | recipe + our nutrition and check results → `Critique` | `critique_recipe` |
 | Revision | recipe + critique → a fixed `RecipeDraft` | `revise_recipe` |
+
+Every answer is cached on disk by `CachedLLM` (`app/core/llm.py`), keyed by the prompt **and**
+the model name. The free Gemini tier allows about 20 requests per day per project per model, and
+one recipe run costs 3-4 of them, so without a cache a UI is unusable. The trade-off is that a
+cached answer is the old answer: change a prompt, clear the cache.
+
+`invoke_with_retry` (same file) sits in `agents.ask`, so all four agents share it. A 503 ("high
+demand") is temporary and is retried up to three times with a growing pause; a 429 is the daily
+allowance and is not retried at all - it raises `QuotaExhausted`, which the API turns into a 503
+with a sentence the person can act on. Together with the cache this means a run that dies
+half-way replays its completed steps for free on the next attempt.
 
 The deterministic steps around them: RAG search (`app/rag/store.py`), nutrition
 (`app/nutrition/calculator.py`), tagging and checks (`app/validation/checks.py`), ranking
@@ -206,7 +217,7 @@ flowchart LR
 
 ## 9. Data model (SQLite via SQLAlchemy)
 
-*(Phase 14 - not built yet. The tables below are the plan.)*
+Built in Phase 14, but smaller than the plan below: four tables in one file (`app/database/models.py`) - `users`, `profiles`, `inventory`, `feedback` - created with `Base.metadata.create_all()` at startup. No migration tool and no repository layer; the routes use a session directly. The `foods`/`recipes` tables were dropped from the plan because that data lives in files the pipeline rebuilds.
 
 ```mermaid
 erDiagram
@@ -271,13 +282,21 @@ Errors: FastAPI's own `{"detail": ...}` shape everywhere - 422 for input that fa
 503 when a dependency (Gemini key, recipe library) is missing, 500 with a fixed message for
 anything unexpected. Internal details and tracebacks only ever go to the logs.
 
-**Built in Phase 13** (the rest arrives with the database in Phase 14, so nothing is behind auth yet):
+**Built so far** (Phases 13-14):
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/health` | what is ready: recipes, ranking model, search index, LLM key |
-| POST | `/api/v1/recipes/generate` | Scenario 1 - free text to one checked recipe |
-| POST | `/api/v1/plans/generate` | Scenario 2 - a meal plan in a budget, using the inventory |
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET | `/health` | - | what is ready: recipes, ranking model, search index, LLM key |
+| POST | `/api/v1/auth/signup`, `/login` | - | bcrypt + JWT |
+| GET/PUT | `/api/v1/users/me/profile` | ✔ | saved diet, allergies, exclusions, targets |
+| GET/PUT | `/api/v1/users/me/inventory` | ✔ | what is at home |
+| POST | `/api/v1/users/me/feedback` | ✔ | like/dislike, for personalization |
+| POST | `/api/v1/recipes/generate` | optional | Scenario 1 |
+| POST | `/api/v1/plans/generate` | optional | Scenario 2 |
+
+The two `generate` endpoints accept a token but do not require one. When a token is present the
+saved profile is merged in with the union rule - saved allergies and exclusions are added to the
+request's, never replaced - so principle 2 ("safety is sticky") holds at the API boundary too.
 
 Both endpoints are thin: validate with Pydantic, call a service
 (`app/services/recipe_service.py`, `app/services/plan_service.py`), return the result. The

@@ -4,12 +4,59 @@ These are the only shapes the API accepts. Anything else is rejected by
 FastAPI with a 422 before our code runs - that is the input validation.
 """
 
-from pydantic import BaseModel, Field
+import re
+
+from pydantic import BaseModel, Field, field_validator
+
+EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[a-zA-Z]{2,}$")
 
 from app.schemas.recipe import ALLERGENS, DIETS
 from app.services.planner import COURSE_FOR_SLOT
 
 MAX_TEXT = 1000
+
+
+class Credentials(BaseModel):
+    email: str = Field(min_length=5, max_length=255)
+    password: str = Field(min_length=8, max_length=72)  # bcrypt ignores past 72 bytes
+
+    @field_validator("email")
+    @classmethod
+    def looks_like_an_email(cls, value: str) -> str:
+        if not EMAIL.match(value.strip()):
+            raise ValueError("That does not look like an email address.")
+        return value.strip().lower()
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class ProfileIn(BaseModel):
+    diet: str | None = None
+    allergies: list[str] = Field(default_factory=list, max_length=10)
+    exclude: list[str] = Field(default_factory=list, max_length=20)
+    min_protein_g: float | None = Field(default=None, ge=0, le=300)
+    max_kcal: float | None = Field(default=None, ge=0, le=5000)
+    max_cook_minutes: int | None = Field(default=None, ge=0, le=600)
+    budget_per_meal_inr: float | None = Field(default=None, ge=0, le=100_000)
+
+    def clean_diet(self):
+        return self.diet if self.diet in DIETS else None
+
+    def clean_allergies(self):
+        return [a for a in self.allergies if a in ALLERGENS]
+
+
+class ProfileOut(ProfileIn):
+    pass
+
+
+class FeedbackIn(BaseModel):
+    recipe_id: str = Field(min_length=1, max_length=64)
+    liked: bool
+    reason: str | None = Field(default=None, max_length=255)
 
 
 class RecipeRequest(BaseModel):

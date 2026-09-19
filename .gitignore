@@ -37,6 +37,7 @@ data/interactions/*
 *.sqlite
 *.sqlite3
 chroma_db/
+llm_cache/
 vector_store/
 mlruns/
 mlartifacts/

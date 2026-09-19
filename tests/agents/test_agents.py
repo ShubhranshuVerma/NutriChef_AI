@@ -95,7 +95,7 @@ def test_generate_recipe_includes_constraints_and_context():
     assert isinstance(recipe, RecipeDraft)
     assert recipe.ingredients[0] == "200 g paneer"
     prompt = llm.prompts[0]
-    assert "diet: vegetarian" in prompt and "allergies: soy" in prompt
+    assert "vegetarian" in prompt and "soy" in prompt
     assert "Palak Paneer" in prompt
     assert "grams (g) or millilitres (ml)" in prompt
 
@@ -159,3 +159,12 @@ def test_answers_can_be_text_or_blocks(content):
 
     constraints = agents.extract_requirements("anything", Model())
     assert constraints.diet == "vegan"
+
+
+def test_at_home_ingredients_are_labelled_optional():
+    """The critic read 'have_ingredients' as a list of required ingredients and
+    demanded eggs from a vegetarian. The label has to say what the list means."""
+    constraints = Constraints(diet="vegetarian", have_ingredients=["paneer", "eggs"])
+    text = agents.describe_constraints(constraints)
+    assert "NOT required" in text
+    assert "have_ingredients" not in text     # the bare field name was the problem

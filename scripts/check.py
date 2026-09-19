@@ -3,6 +3,7 @@
 Run from the project root:
     python -m scripts.check              # offline checks
     python -m scripts.check --ping-llm   # also sends one tiny request to Gemini
+    python -m scripts.check --clear-llm-cache   # forget every cached LLM answer
 """
 
 import argparse
@@ -12,10 +13,28 @@ import sys
 os.environ.setdefault("MLFLOW_DISABLE_AGENT_HINT", "1")  # silence MLflow's import banner
 
 from app.core.config import PROJECT_ROOT, get_settings
+from app.core.llm import CACHE_DIR
 from app.datasets import recipenlg, reference, usda
 from app.nutrition.food_matcher import load_catalog
 
 OK, MISSING, WARN = "[ OK ]", "[MISS]", "[WARN]"
+
+
+def shadowed_by_the_shell() -> list[str]:
+    """Names set in BOTH .env and the shell. The shell wins, which surprises everyone."""
+    env_file = PROJECT_ROOT / ".env"
+    if not env_file.exists():
+        return []
+    shadowed = []
+    for line in env_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, _, value = line.partition("=")
+        name, value = name.strip(), value.split("#")[0].strip().strip("\"'")
+        if name in os.environ and os.environ[name] != value:
+            shadowed.append(name)
+    return shadowed
 
 
 def check_settings() -> bool:
@@ -24,6 +43,9 @@ def check_settings() -> bool:
         print(f"  {OK} .env found")
     else:
         print(f"  {WARN} .env not found - run: cp .env.example .env")
+
+    for name in shadowed_by_the_shell():
+        print(f"  {WARN} {name} is set in your shell and overrides .env - run: unset {name}")
 
     try:
         settings = get_settings()
@@ -43,8 +65,7 @@ def check_settings() -> bool:
 
 def ping_llm() -> bool:
     """One small real request, to prove the key and the model name work."""
-    from app.agents.agents import answer_text
-    from app.core.llm import get_llm
+    from app.core.llm import answer_text, get_llm
 
     try:
         reply = answer_text(get_llm(temperature=0).invoke("Reply with exactly one word: OK"))
@@ -106,10 +127,19 @@ def check_generated() -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ping-llm", action="store_true", help="send one small request to Gemini")
+    parser.add_argument("--clear-llm-cache", action="store_true",
+                        help="delete cached LLM answers (do this after changing a prompt)")
     args = parser.parse_args()
+
+    if args.clear_llm_cache:
+        from app.core.llm import clear_cache
+        print(f"Removed {clear_cache()} cached answers.")
 
     print("\nSettings:")
     ok = check_settings()
+    print(f"  {OK if get_settings().llm_cache else WARN} LLM answer cache "
+          f"{'on' if get_settings().llm_cache else 'off'} "
+          f"({len(list(CACHE_DIR.glob('*.txt'))) if CACHE_DIR.exists() else 0} answers saved)")
     if args.ping_llm:
         ok = ping_llm() and ok
 

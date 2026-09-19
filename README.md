@@ -22,7 +22,8 @@ NutriChef turns requests like *"I'm vegetarian, allergic to soy, have paneer and
 | 10 Agent workflow (LangGraph) | ✅ |
 | 11–12 Meal planning, inventory & budget | ✅ |
 | 13 REST API (FastAPI) | ✅ |
-| 14+ Database, UI, MLOps | ⏳ |
+| 14 Database, accounts & saved profiles | ✅ |
+| 15+ Streamlit UI, MLOps, deployment | ⏳ |
 
 See [`docs/architecture.md`](docs/architecture.md).
 
@@ -65,6 +66,14 @@ python -m scripts.demo_meal_plan --no-llm --days 3 --budget 800
 python -m scripts.demo_meal_plan --slots breakfast,lunch,dinner,snack   # fuller days
 ```
 
+LLM answers are cached on disk (`data/processed/llm_cache`), so repeating a request costs no
+Gemini quota and returns instantly — the free tier allows only a few requests per day. After
+changing a prompt, clear it:
+
+```bash
+python -m scripts.check --clear-llm-cache
+```
+
 ## API
 
 ```bash
@@ -74,8 +83,16 @@ uvicorn app.api.main:app --reload     # then open http://127.0.0.1:8000/docs
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/health` | what is ready (recipes, model, index, LLM key) |
+| POST | `/api/v1/auth/signup`, `/login` | create an account, get a JWT |
+| GET/PUT | `/api/v1/users/me/profile` | saved diet, allergies, exclusions, targets |
+| GET/PUT | `/api/v1/users/me/inventory` | what you have at home |
+| POST | `/api/v1/users/me/feedback` | like/dislike a recipe |
 | POST | `/api/v1/recipes/generate` | Scenario 1 — free text → one checked recipe |
 | POST | `/api/v1/plans/generate` | Scenario 2 — meal plan in a budget, using your inventory |
+
+Both `generate` endpoints work with or without a token. With one, your saved allergies and
+exclusions are **added** to whatever the request asks for — a request can never remove them —
+and your saved inventory is used when the request does not send one.
 
 ## Data
 

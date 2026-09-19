@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     llm_temperature: float = Field(default=0.3, ge=0.0, le=2.0)
     llm_timeout_seconds: int = Field(default=60, gt=0)
     llm_max_retries: int = Field(default=2, ge=0, le=5)
+    llm_cache: bool = True  # cache answers on disk; the free tier allows very few
 
     # ---------- Embeddings / RAG (HuggingFace, runs locally) ----------
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
@@ -83,8 +84,12 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _production_safety(self) -> "Settings":
         if self.environment == "production":
-            if self.jwt_secret_key.get_secret_value() in _INSECURE_JWT_SECRETS:
-                raise ValueError("JWT_SECRET_KEY must be set to a strong value in production")
+            secret = self.jwt_secret_key.get_secret_value()
+            if secret in _INSECURE_JWT_SECRETS or len(secret) < 32:
+                raise ValueError(
+                    "JWT_SECRET_KEY must be a strong value of at least 32 characters "
+                    "in production (try: python -c \"import secrets; print(secrets.token_hex(32))\")"
+                )
             if self.google_api_key is None:
                 raise ValueError("GOOGLE_API_KEY is required in production")
         return self

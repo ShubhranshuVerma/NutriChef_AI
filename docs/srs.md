@@ -205,7 +205,8 @@ The endpoint list is in *Architecture (v2)*, section 10.
 | FR-32 | Recipes with less than 80 % of ingredient cost known are not used when a budget applies | Met |
 | FR-33 | No recipe twice in one day; a recipe is not repeated within 3 days while alternatives exist | Met |
 | FR-34 | Recipes that use food at home, or food expiring within 3 days, score higher | Met |
-| FR-35 | A slot that cannot be filled safely is reported as skipped, never filled with an unsafe recipe | Met |
+| FR-35 | A slot is never filled with an unsafe recipe. If no recipe of its own course fits (e.g. every breakfast removed by an allergy and a dislike), a safe light dish from a nearby course fills it, marked as a stand-in; a slot nothing can fill is reported as skipped with the real reason (no recipe fits, or the budget ran out) | Met |
+| FR-35a | With a budget, each pick keeps back enough for the cheapest possible meal in every slot still to fill, so later days are not left empty | Met |
 | FR-36 | The plan reports totals, whether the daily protein goal was met, and a shopping list of what is needed minus what is at home, priced in ₹ | Met |
 | FR-37 | A signed-in user's saved kitchen is used when the request sends no inventory | Met |
 
@@ -215,7 +216,8 @@ The endpoint list is in *Architecture (v2)*, section 10.
 |---|---|---|
 | FR-38 | Each candidate recipe gets a score from 0 to 1 from 11 features | Met |
 | FR-39 | Without a trained model, a weighted rule score is used | Met |
-| FR-40 | A user's own likes and dislikes change their ranking as they accumulate (model weight = min(n, 5)/5) | **Partly met** — the blend exists and is tested, but the planner does not yet pass the user's interaction count, so everyone is ranked as a new user |
+| FR-40 | A user's own likes and dislikes change their plans: disliked recipes never return, liked ones and similar ones (same cuisine, shared ingredients) rank higher, and the model's weight grows with the number of ratings (min(n, 5)/5) | Met |
+| FR-40a | Every meal in a plan has Like / Not for me for signed-in users, and a plan built from ratings says so | Met |
 | FR-41 | The ranker is evaluated with Precision@5, Recall@5, HitRate@5, NDCG@5 and ROC-AUC, logged to MLflow | Met |
 
 ### 4.7 Data pipeline and operations
@@ -275,10 +277,10 @@ The endpoint list is in *Architecture (v2)*, section 10.
 
 | ID | Requirement | Status |
 |---|---|---|
-| NFR-19 | The test suite runs offline with no API key, using a fake LLM (107 tests; 3 need the real data) | Met |
+| NFR-19 | The test suite runs offline with no API key, using a fake LLM (114 tests; 3 need the real data) | Met |
 | NFR-20 | Business logic is in services and engines, not in routes or the website | Met |
 | NFR-21 | With a LangSmith key, every LLM call and every recipe-workflow step is traced; without one nothing is sent | Met |
-| NFR-22 | Runs in a Docker container (non-root, health-checked, no secrets or licensed data in the image) and deploys to AWS EC2 through Jenkins | **Partly met**: Docker done; Jenkins and EC2 are Phases 19-20 |
+| NFR-22 | Runs in a Docker container (non-root, health-checked, no secrets or licensed data in the image); one Jenkins click runs every project script, the tests and the image build; deploys to AWS EC2 | **Partly met**: Docker and Jenkins done; EC2 is Phase 20 |
 
 ---
 
@@ -302,8 +304,9 @@ All tests are in `tests/`. Run with `python -m pytest -q`.
 | FR-21 | `test_agents.py`: `test_the_rewrite_is_told_exactly_which_ingredient_to_replace`, `test_swaps_never_break_another_allergy`, `test_every_prompt_lists_what_counts_as_each_allergy`, `test_a_second_rewrite_is_a_new_question_not_a_saved_answer` |
 | FR-21, NFR-23 | `test_agents.py`: `test_the_same_words_always_give_the_same_constraints`, `test_the_critic_gives_the_same_answer_every_time`, `test_the_same_request_always_gives_the_same_recipe`, `test_gemini_is_asked_for_its_most_likely_answer` |
 | FR-24 – FR-28 | `test_checks.py` (12 tests) |
-| FR-30 – FR-36 | `test_planner.py` (12 tests) |
-| FR-38 – FR-41 | `test_ml.py` (6 tests) |
+| FR-30 – FR-36 | `test_planner.py` (14 tests, including `test_no_breakfast_left_means_a_light_stand_in_not_an_empty_slot`, `test_the_budget_is_paced_so_the_last_days_are_not_empty`, `test_a_slot_nothing_can_fill_is_left_empty_and_says_why`) |
+| FR-38 – FR-41 | `test_ml.py` (7 tests) |
+| FR-40 | `test_planner.py`: `test_a_disliked_recipe_never_comes_back`, `test_a_liked_recipe_and_similar_ones_rank_higher`, `test_ratings_turn_the_ranking_model_on`; `test_auth.py`: `test_likes_and_dislikes_reach_the_planner` |
 | FR-44 | `test_data.py`: `test_every_curated_recipe_makes_it_into_the_library` |
 | FR-45, UI-1 | `test_api.py`: `test_health_always_answers`, `test_the_website_is_served`, `test_the_website_does_not_hide_the_api` |
 | NFR-3 – NFR-5, NFR-7 | `test_agents.py`: `test_a_repeated_prompt_is_answered_from_the_cache`, `test_a_busy_gemini_is_retried`, `test_an_empty_daily_quota_is_not_retried`, `test_a_malformed_answer_is_asked_for_once_more` |
@@ -317,8 +320,7 @@ All tests are in `tests/`. Run with `python -m pytest -q`.
 
 | Item | Requirement | Planned |
 |---|---|---|
-| Pass each user's interaction count to the ranker | FR-40 | Next change |
-| Jenkins pipeline, EC2 deployment | NFR-22 | Phases 19-20 |
+| EC2 deployment | NFR-22 | Phase 20 |
 | Account deletion endpoint | FR-12 | Phase 22 (hardening) |
 | Per-user rate limit on LLM endpoints | NFR-15 | Phase 22 (hardening) |
 | Use the guidance collection in the recipe workflow | — | Optional |

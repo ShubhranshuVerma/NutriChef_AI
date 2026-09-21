@@ -66,10 +66,32 @@ def test_no_recipe_twice_in_one_day(library):
         seen.add(key)
 
 
-def test_a_missing_course_is_skipped_not_faked(library):
-    plan = planner.plan_meals(library, {}, days=1, slots=["snack"])
+def test_a_slot_nothing_can_fill_is_left_empty_and_says_why(library):
+    mains_only = [r for r in library if r["course"] == "main"]
+    plan = planner.plan_meals(mains_only, {}, days=1, slots=["snack"])
     assert plan["meals"] == []
-    assert plan["skipped"][0]["slot"] == "snack"
+    assert plan["skipped"] == [{"day": 1, "slot": "snack", "reason": "no_recipe"}]
+
+
+def test_no_breakfast_left_means_a_light_stand_in_not_an_empty_slot(library):
+    """A soy allergy and a dislike or two can remove every breakfast in the library."""
+    library.append(make_recipe("s1", "Sprouts Chaat", course="snack", cost=20))
+    no_breakfasts = [r for r in library if r["course"] != "breakfast"]
+    plan = planner.plan_meals(no_breakfasts, {}, days=3, slots=["breakfast", "lunch"])
+    breakfasts = [m for m in plan["meals"] if m["slot"] == "breakfast"]
+    assert plan["skipped"] == []
+    assert [m["title"] for m in breakfasts] == ["Sprouts Chaat"] * 3
+    assert all(m["stand_in"] for m in breakfasts)
+
+
+def test_the_budget_is_paced_so_the_last_days_are_not_empty():
+    """Spending on a pricey favourite on day 1 must not leave day 3 with nothing."""
+    pricey = make_recipe("p", "Paneer Tikka", cost=100, protein_g=40)
+    cheap = make_recipe("c", "Dal Rice", cost=10, protein_g=12)
+    plan = planner.plan_meals([pricey, cheap], {"protein_target_g": 30}, days=3,
+                              slots=["lunch"], budget_inr=115)
+    assert plan["skipped"] == []
+    assert plan["totals"]["total_cost_inr"] <= 115
 
 
 # ---------- using what is at home ----------
@@ -122,3 +144,34 @@ def test_every_plan_carries_the_disclaimer(library):
     plan = planner.make_plan({}, days=1, slots=["lunch"], deps=deps(library))
     assert "not medical advice" in plan["disclaimer"]
     assert "cannot guarantee allergy safety" in plan["disclaimer"]
+
+
+# ---------- personal: what they liked and disliked ----------
+
+def test_a_disliked_recipe_never_comes_back(library):
+    plan = planner.make_plan({}, days=7, slots=["lunch", "dinner"], deps=deps(library),
+                             feedback={"disliked": ["r1"]})
+    assert "r1" not in [m["recipe_id"] for m in plan["meals"]]
+
+
+def test_a_liked_recipe_and_similar_ones_rank_higher(library):
+    library[2]["cuisine_group"] = "italian"          # Chana Masala: nothing like Paneer Bhurji
+    user = planner.personalize({}, library, {"liked": ["r1"]})
+    assert user["liked_ingredients"] == ["onion", "paneer"]
+    scores = {r["recipe_id"]: r["score"] for r in planner.score_recipes(library, user, [])}
+    assert scores["r1"] > scores["r2"] > scores["r3"]  # liked > shares onion > shares nothing
+
+
+def test_ratings_turn_the_ranking_model_on(library):
+    """With no ratings the model is ignored; after five it has full weight."""
+    class LovesEverything:
+        def predict_proba(self, rows):
+            return [[0.0, 1.0] for _ in range(len(rows))]
+
+    five = {"liked": ["r1", "r2"], "disliked": ["r3", "r4", "r5"]}
+    new = planner.score_recipes(library, planner.personalize({}, library, None), [],
+                                model=LovesEverything())
+    rated = planner.score_recipes(library, planner.personalize({}, library, five), [],
+                                  model=LovesEverything())
+    score = lambda plan, rid: next(r["score"] for r in plan if r["recipe_id"] == rid)
+    assert score(rated, "r6") > score(new, "r6")      # the model's "yes" now counts

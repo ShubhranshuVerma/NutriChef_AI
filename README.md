@@ -27,7 +27,8 @@ NutriChef turns requests like *"I'm vegetarian, allergic to soy, have paneer and
 | 16 Test suite & coverage | ✅ |
 | 17 Observability (LangSmith tracing) | ✅ |
 | 18 Docker | ✅ |
-| 19–20 Jenkins, AWS | ⏳ |
+| 19 Jenkins | ✅ |
+| 20 AWS | ⏳ |
 
 See [`docs/architecture.md`](docs/architecture.md).
 
@@ -170,6 +171,45 @@ docker compose down
 `.env` is never copied into the image. The ranker must be trained with the same scikit-learn
 version the image installs (the one in `requirements.txt`); if it cannot be read, plans still
 work on the rule score and the log says to run `python -m scripts.train_ranker`.
+
+## Jenkins: run everything with one click
+
+[`Jenkinsfile`](Jenkinsfile) runs the project's own commands one after another, in your
+project folder, with your project's Python:
+
+| Stage | Command |
+|---|---|
+| Install libraries | `pip install -r requirements.txt -r requirements-dev.txt` |
+| Build data | `python -m scripts.build_data --rebuild` |
+| Train ranker | `python -m scripts.train_ranker` |
+| Check setup | `python -m scripts.check` |
+| Run tests | `python -m pytest -q` |
+| Demo meal plan | `python -m scripts.demo plan --days 3` |
+| Build Docker image | `docker compose build` |
+
+If a stage fails, the rest are skipped and that stage's log shows why. No Gemini request is
+made, so it costs no quota.
+
+**One-time setup** (Homebrew):
+
+```bash
+brew install jenkins-lts
+brew services start jenkins-lts
+cat ~/.jenkins/secrets/initialAdminPassword
+```
+
+1. Open http://localhost:8080, paste the password, choose **Install suggested plugins**, and
+   create your user.
+2. **New Item** → name `nutrichef` → **Pipeline** → OK.
+3. Under **Pipeline**: Definition **Pipeline script from SCM** → SCM **Git** → Repository URL
+   `https://github.com/ShubhranshuVerma/NutriChef_AI.git` → Branch `*/main` →
+   Script Path `Jenkinsfile` → **Save**.
+4. Click **Build Now**. Each stage turns green as it finishes; click one to see its log.
+
+Jenkins reads the `Jenkinsfile` from GitHub (so push it first) and runs the commands in
+`~/NutriChef_AI`. Docker Desktop must be running for the last stage. The first run takes a
+while (building the data and the image); later runs are faster. Stop Jenkins with
+`brew services stop jenkins-lts`.
 
 ## Data
 

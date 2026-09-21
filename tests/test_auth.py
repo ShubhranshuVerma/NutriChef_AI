@@ -146,6 +146,18 @@ def test_the_saved_kitchen_is_used_when_the_request_sends_none(client, monkeypat
     assert seen["inventory"][0]["ingredient_id"] == "paneer"
 
 
+def test_likes_and_dislikes_reach_the_planner(client, monkeypatch):
+    headers = sign_up(client)
+    client.post("/api/v1/users/me/feedback", headers=headers, json={"recipe_id": "r1", "liked": True})
+    client.post("/api/v1/users/me/feedback", headers=headers, json={"recipe_id": "r2", "liked": False})
+    seen = {}
+    monkeypatch.setattr(routes.planner, "make_plan",
+                        lambda request, **options: seen.update(options) or {})
+
+    client.post("/api/v1/plans/generate", headers=headers, json={"days": 2})
+    assert seen["feedback"] == {"liked": ["r1"], "disliked": ["r2"]}
+
+
 # ---------- secrets ----------
 
 def test_the_gemini_key_is_never_printed(monkeypatch):

@@ -180,7 +180,7 @@ branch.
 
 Planner scoring per slot (`app/services/planner.py`):
 `score = ranker_score + 0.3 · share_of_ingredients_at_home + 0.2 · uses_something_expiring
-         + 0.4 · reaches_the_protein_target`
+         + 0.4 · reaches_the_protein_target + 0.5 · they_liked_it` (disliked recipes are removed first)
 
 The ranker score is the Phase 7 model (rule score blended in for new users). Filtering happens
 before scoring: only recipes that pass `check_recipe` for this person enter the pool, so
@@ -190,8 +190,15 @@ price, so they look almost free and would otherwise win every slot (the filter i
 would leave too few recipes to plan with). Slots are filled greedily,
 day by day, and variety is tried in three steps: a recipe not yet in the plan at all; failing
 that, one not eaten for 3 days; failing that, anything not already eaten today. The running
-budget is a hard limit; a slot that cannot be filled is reported in `skipped` rather than
-filled unsafely.
+budget is a hard limit, and it is paced: each pick keeps back enough money for the cheapest
+possible meal in every slot still to fill, so a pricey favourite on day 1 cannot leave day 7
+empty.
+
+Breakfasts are rare in the library (most RecipeNLG recipes are mains), so a soy allergy plus a
+dislike or two can remove every breakfast. The slot is then filled from a nearby course
+(breakfast → snack → main; snack → breakfast → side) and marked `stand_in`, and the page says
+so. Only a slot that nothing safe can fill is reported in `skipped`, with its real reason:
+`no_recipe` or `budget`. A slot is never filled unsafely.
 The shopping list subtracts what is already at home from what the plan needs and prices the
 rest in ₹.
 
@@ -257,9 +264,21 @@ flowchart TB
 | Tracking | MLflow in `mlflow.db`; the chosen model goes to `ml/artifacts/ranker.joblib` |
 | Serving | `planner.load_dependencies` loads the model once per process; no model file means rule score only |
 
-**Known gap.** Likes and dislikes are saved (`POST /users/me/feedback`), but the planner does
-not yet pass a user's interaction count to the ranker, so `n = 0` and every user is scored by the
-rule score alone. Fixing this is the next planned change.
+**How a person's own ratings change their plans.** The model was trained on profile features,
+not on who liked what, so a person's ratings reach the ranking in four plain ways
+(`planner.personalize` and `build_plan`):
+
+1. **"Not for me" is final.** A disliked recipe is removed before scoring and never suggested again.
+2. **Liked recipes get a bonus** (+0.5), so favourites come back, within the no-repeat rules.
+3. **Similar recipes rise.** The ingredients of liked recipes become `liked_ingredients` and their
+   most-liked cuisine becomes `cuisine`; the `ingredient_overlap` and `cuisine_match` features
+   then lift recipes like the ones they enjoyed.
+4. **The model's weight grows with ratings.** The number of ratings is passed to the ranker, so
+   the blend moves from the rule score to the model over the first five.
+
+The website puts *Like* and *Not for me* on every meal of a plan (signed-in users), and a plan
+built with ratings says "Tuned to your N ratings". Guests and people with no ratings get exactly
+the plans they got before.
 
 ---
 
@@ -410,7 +429,14 @@ step's seconds. Compare the revision count too — if the writer misses targets 
 
 ## 13. Deployment
 
-Phase 18 (Docker) is built; Phases 19-20 (Jenkins, EC2) are the plan below.
+Phase 18 (Docker) and Phase 19 (Jenkins) are built; Phase 20 (EC2) is the plan below.
+
+**Jenkins, as built.** Jenkins runs on the Mac (Homebrew). One click on *Build Now* runs the
+`Jenkinsfile`: seven stages, each one of the project's own commands, run in the project folder
+with the project's `.venv` Python: install libraries → build data (`--rebuild`, so the search
+index is not filled twice) → train the ranker → check the setup → run the tests → demo a meal
+plan → `docker compose build`. A failed stage stops the run and its log says why. No Gemini
+request is made, so a build costs no quota.
 
 **Docker, as built.** One image runs the API and the website (`Dockerfile`, `compose.yml`,
 `.dockerignore`):
@@ -432,7 +458,7 @@ falls back to the rule score and logs a warning instead of breaking every plan.
 ```mermaid
 flowchart LR
     Dev["Mac (local dev)"] -->|"git push"| GH["GitHub repo"]
-    GH -->|"webhook / poll"| J["Jenkins (Docker on Mac)"]
+    GH -->|"webhook / poll"| J["Jenkins (on the Mac)"]
     J -->|"pytest + report"| J
     J -->|"docker buildx (linux/arm64)"| IMG["Image: api (serves the website too)"]
     IMG -->|"push"| REG["GitHub Container Registry"]
@@ -474,7 +500,7 @@ nutrichef-ai/
 ├── scripts/          build_data.py, train_ranker.py, demo.py, check.py
 ├── tests/            one file per area + conftest.py, helpers.py
 ├── docs/             architecture.md, data_sources.md
-├── Dockerfile  compose.yml  .dockerignore
+├── Dockerfile  compose.yml  .dockerignore  Jenkinsfile
 ├── requirements.txt  requirements-dev.txt  pytest.ini  .env.example  .gitignore
 └── README.md
 ```

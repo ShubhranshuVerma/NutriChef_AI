@@ -25,12 +25,18 @@ from app.nutrition.units import to_grams
 LIBRARY_PATH = PROJECT_ROOT / "data" / "processed" / "recipes_tagged.jsonl"
 
 COURSE_FOR_SLOT = {"breakfast": "breakfast", "lunch": "main", "dinner": "main", "snack": "snack"}
+# If no recipe of the right course fits someone's rules (few breakfasts survive a soy
+# allergy plus a dislike or two), fill the slot from the next course instead of leaving
+# it empty. The meal is marked as a stand-in so the page can say so.
+COURSES_FOR_SLOT = {"breakfast": ["breakfast", "snack", "main"], "lunch": ["main"],
+                    "dinner": ["main"], "snack": ["snack", "breakfast", "side"]}
 DEFAULT_SLOTS = ["breakfast", "lunch", "dinner"]
 DAILY_KCAL = 2000        # a normal day, used only to aim for sensibly sized meals
 NO_REPEAT_DAYS = 3       # a recipe used on day 1 can come back on day 4
 INVENTORY_BONUS = 0.3
 EXPIRY_BONUS = 0.2
 PROTEIN_BONUS = 0.4      # for recipes that actually reach the protein target
+LIKED_BONUS = 0.5        # for a recipe this person has liked before
 MIN_COST_COVERAGE = 0.8  # below this, most ingredients have no price and the recipe looks free
 EXPIRY_SOON_DAYS = 3
 
@@ -88,6 +94,31 @@ def protein_target(request, slots):
     return request["min_protein_g"] * len(slots)
 
 
+# ---------- what this person has liked ----------
+
+def feedback_ids(feedback):
+    """{"liked": [...], "disliked": [...]} -> two sets of recipe ids (empty if none)."""
+    feedback = feedback or {}
+    return set(feedback.get("liked", [])), set(feedback.get("disliked", []))
+
+
+def personalize(user, recipes, feedback):
+    """Add what their likes tell us to the ranker's profile.
+
+    - liked_ingredients: every ingredient of every recipe they liked
+    - cuisine: the cuisine they liked most (only if they did not ask for one)
+    The rule score and the model both use these, so similar recipes rise too.
+    """
+    liked, disliked = feedback_ids(feedback)
+    liked_recipes = [r for r in recipes if r["recipe_id"] in liked]
+    ingredients = sorted({i for r in liked_recipes for i in (r.get("ingredient_ids") or [])})
+    cuisines = [r.get("cuisine_group") for r in liked_recipes if r.get("cuisine_group")]
+    favourite = max(sorted(set(cuisines)), key=cuisines.count) if cuisines else None
+    return {**user, "liked_ingredients": ingredients,
+            "cuisine": user.get("cuisine") or favourite,
+            "liked_ids": sorted(liked), "n_interactions": len(liked) + len(disliked)}
+
+
 # ---------- choosing recipes ----------
 
 def safe_recipes(recipes, request, rules):
@@ -129,14 +160,18 @@ def expiring_ids(inventory, days=EXPIRY_SOON_DAYS):
             if item.get("expires_in_days") is not None and item["expires_in_days"] <= days}
 
 
-def score_recipes(recipes, user, inventory, model=None, n_interactions=0):
-    """Personal score, plus bonuses for using what is already at home."""
+def score_recipes(recipes, user, inventory, model=None):
+    """Personal score, plus bonuses for liked recipes and for using what is at home."""
     at_home = inventory_ids(inventory)
     expiring = expiring_ids(inventory)
+    liked = set(user.get("liked_ids", []))
+    n_interactions = user.get("n_interactions", 0)
     scored = []
     for recipe in recipes:
         ids = set(recipe.get("ingredient_ids") or [])
         score = score_recipe({**user, "inventory": list(at_home)}, recipe, model, n_interactions)
+        if recipe["recipe_id"] in liked:
+            score += LIKED_BONUS
         if ids & at_home:
             score += INVENTORY_BONUS * len(ids & at_home) / max(len(ids), 1)
         if ids & expiring:
@@ -168,42 +203,72 @@ def pick_recipe(scored, course, day, used_on_day, budget_left, min_gap):
     return None
 
 
-def plan_meals(recipes, user, days=7, slots=None, budget_inr=None, inventory=None,
-               model=None, n_interactions=0):
-    """Greedy plan: for each slot pick the best recipe we can still afford."""
+def pick_for_slot(scored, slot, day, used_on_day, budget_left):
+    """The best recipe for this slot: its own course first, then the stand-in courses.
+
+    Within a course: something new first; then a recipe we have not had for
+    NO_REPEAT_DAYS; then anything we have not already eaten today.
+    """
+    for course in COURSES_FOR_SLOT.get(slot, ["main"]):
+        for min_gap in (float("inf"), NO_REPEAT_DAYS, 1):
+            choice = pick_recipe(scored, course, day, used_on_day, budget_left, min_gap)
+            if choice:
+                return choice
+    return None
+
+
+def cheapest_for(scored, slot):
+    """The cheapest recipe that could fill this slot (0 if none could)."""
+    costs = [r.get("cost_per_serving_inr") or 0 for r in scored
+             if r.get("course") in COURSES_FOR_SLOT.get(slot, ["main"])]
+    return min(costs) if costs else 0
+
+
+def plan_meals(recipes, user, days=7, slots=None, budget_inr=None, inventory=None, model=None):
+    """Greedy plan: for each slot pick the best recipe we can still afford.
+
+    With a budget, each pick keeps back enough money for the cheapest possible meal in
+    every slot still to fill, so the last days are not left empty because the first
+    days spent it all.
+    """
     slots = slots or DEFAULT_SLOTS
-    scored = score_recipes(recipes, user, inventory, model, n_interactions)
+    scored = score_recipes(recipes, user, inventory, model)
     budget_left = budget_inr
     used_on_day = {}  # recipe_id -> last day it was used
     plan, skipped = [], []
+    cheapest = {slot: cheapest_for(scored, slot) for slot in slots}
+    positions = [(day, slot) for day in range(1, days + 1) for slot in slots]
 
-    for day in range(1, days + 1):
-        for slot in slots:
-            course = COURSE_FOR_SLOT.get(slot, "main")
-            # Something new first; then a recipe we have not had for NO_REPEAT_DAYS;
-            # then anything we have not already eaten today.
-            choice = None
-            for min_gap in (float("inf"), NO_REPEAT_DAYS, 1):
-                choice = pick_recipe(scored, course, day, used_on_day, budget_left, min_gap)
-                if choice:
-                    break
+    for index, (day, slot) in enumerate(positions):
+        spendable = budget_left
+        if budget_left is not None:
+            still_to_fill = positions[index + 1:]
+            spendable = budget_left - sum(cheapest[later] for _, later in still_to_fill)
+        choice = pick_for_slot(scored, slot, day, used_on_day, spendable)
+        if choice is None and spendable != budget_left:
+            choice = pick_for_slot(scored, slot, day, used_on_day, budget_left)
 
-            if choice is None:
-                skipped.append({"day": day, "slot": slot, "reason": "nothing suitable left"})
-                continue
+        if choice is None:
+            courses = COURSES_FOR_SLOT.get(slot, ["main"])
+            any_fits = any(r.get("course") in courses for r in scored)
+            reason = "budget" if any_fits else "no_recipe"
+            skipped.append({"day": day, "slot": slot, "reason": reason})
+            continue
 
-            used_on_day[choice["recipe_id"]] = day
-            if budget_left is not None:
-                budget_left -= choice.get("cost_per_serving_inr") or 0
-            plan.append({
-                "day": day, "slot": slot, "recipe_id": choice["recipe_id"],
-                "title": choice["title"], "kcal": choice.get("kcal"),
-                "protein_g": choice.get("protein_g"),
-                "cost_inr": choice.get("cost_per_serving_inr"),
-                "score": choice["score"], "ingredient_ids": choice.get("ingredient_ids", []),
-                "ingredients": choice.get("ingredients", []),
-                "servings": choice.get("servings") or 1,
-            })
+        used_on_day[choice["recipe_id"]] = day
+        if budget_left is not None:
+            budget_left -= choice.get("cost_per_serving_inr") or 0
+        plan.append({
+            "day": day, "slot": slot, "recipe_id": choice["recipe_id"],
+            "title": choice["title"], "kcal": choice.get("kcal"),
+            "protein_g": choice.get("protein_g"),
+            "cost_inr": choice.get("cost_per_serving_inr"),
+            "score": choice["score"], "ingredient_ids": choice.get("ingredient_ids", []),
+            "ingredients": choice.get("ingredients", []),
+            "servings": choice.get("servings") or 1,
+            "course": choice.get("course"),
+            "stand_in": choice.get("course") != COURSES_FOR_SLOT.get(slot, ["main"])[0],
+        })
 
     return {"meals": plan, "skipped": skipped, "days": days, "slots": slots,
             "budget_inr": budget_inr, "totals": plan_totals(plan, days)}
@@ -278,9 +343,12 @@ def shopping_summary(rows):
 # ---------- everything together ----------
 
 def build_plan(recipes, user, request, rules, tables, days=7, slots=None, budget_inr=None,
-               inventory=None, model=None):
+               inventory=None, model=None, feedback=None):
     """Filter, score, fill the slots, and add the shopping list."""
-    safe = safe_recipes(recipes, request, rules)
+    user = personalize(user, recipes, feedback)
+    _, disliked = feedback_ids(feedback)
+    # A recipe they said "not for me" to is never suggested again.
+    safe = [r for r in safe_recipes(recipes, request, rules) if r["recipe_id"] not in disliked]
     allowed = safe
 
     # With a budget, drop recipes we cannot price properly - otherwise the ones with
@@ -297,20 +365,25 @@ def build_plan(recipes, user, request, rules, tables, days=7, slots=None, budget
     plan["recipes_considered"] = len(recipes)
     plan["recipes_safe"] = len(safe)
     plan["recipes_allowed"] = len(allowed)
+    plan["personalized"] = {"ratings": user["n_interactions"], "liked_cuisine": user["cuisine"]}
     plan["within_budget"] = (budget_inr is None
                              or plan["totals"]["total_cost_inr"] <= budget_inr)
     return plan
 
 
-def make_plan(request, days=7, slots=None, budget_inr=None, inventory=None, deps=None):
-    """The one call the API and the demo use. `request` is the constraints dict."""
+def make_plan(request, days=7, slots=None, budget_inr=None, inventory=None, deps=None,
+              feedback=None):
+    """The one call the API and the demo use. `request` is the constraints dict.
+
+    `feedback` is {"liked": [recipe ids], "disliked": [recipe ids]} for a signed-in user.
+    """
     deps = deps or load_dependencies()
     slots = slots or DEFAULT_SLOTS
     profile = user_profile(request, budget_inr, days, slots)
 
     plan = build_plan(deps["recipes"], profile, request, deps["rules"], deps["tables"],
                       days=days, slots=slots, budget_inr=budget_inr, inventory=inventory,
-                      model=deps.get("model"))
+                      model=deps.get("model"), feedback=feedback)
 
     target = protein_target(request, slots)
     plan["protein_target_per_day_g"] = target

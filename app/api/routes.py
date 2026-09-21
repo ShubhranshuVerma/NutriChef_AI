@@ -84,9 +84,15 @@ def generate_plan(body: schemas.PlanRequest, user=Depends(current_user)):
     if not inventory and user is not None:
         inventory = [item.as_dict() for item in user.inventory]
 
+    # Their likes and dislikes tune the plan: disliked recipes never come back.
+    feedback = None
+    if user is not None:
+        feedback = {"liked": [f.recipe_id for f in user.feedback if f.liked],
+                    "disliked": [f.recipe_id for f in user.feedback if not f.liked]}
+
     log.info("plan request: %d days, budget %s, user=%s", body.days, body.budget_inr, bool(user))
     return planner.make_plan(constraints, days=body.days, slots=body.clean_slots(),
-                             budget_inr=body.budget_inr, inventory=inventory)
+                             budget_inr=body.budget_inr, inventory=inventory, feedback=feedback)
 
 
 health_router = APIRouter()

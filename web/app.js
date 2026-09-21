@@ -388,9 +388,26 @@ function renderPlan(plan) {
       ? '<span class="badge good">Protein goal met every day</span>'
       : '<span class="badge warn">Protein goal not quite reached</span>';
   }
-  if (plan.skipped && plan.skipped.length) {
-    marks.innerHTML += `<span class="badge warn">${plan.skipped.length} meals left empty —
-      nothing in budget passed your rules</span>`;
+  const skipped = plan.skipped || [];
+  const noRecipe = skipped.filter((s) => s.reason === 'no_recipe').length;
+  const noMoney = skipped.length - noRecipe;
+  if (noRecipe) {
+    marks.innerHTML += `<span class="badge warn">${noRecipe} meal${noRecipe > 1 ? 's' : ''} left
+      empty — no recipe for it fits your diet, allergies and dislikes</span>`;
+  }
+  if (noMoney) {
+    marks.innerHTML += `<span class="badge warn">${noMoney} meal${noMoney > 1 ? 's' : ''} left
+      empty — the budget ran out</span>`;
+  }
+  const standIns = plan.meals.filter((m) => m.stand_in).length;
+  if (standIns) {
+    marks.innerHTML += `<span class="badge flat">Few recipes fit some meals, so ${standIns}
+      ${standIns > 1 ? 'are' : 'is a'} light dish${standIns > 1 ? 'es' : ''} from another course</span>`;
+  }
+  const ratings = (plan.personalized || {}).ratings || 0;
+  if (ratings) {
+    marks.innerHTML += `<span class="badge flat">Tuned to your ${ratings}
+      rating${ratings > 1 ? 's' : ''}</span>`;
   }
   if (marks.innerHTML) summary.append(marks);
 
@@ -403,11 +420,26 @@ function renderPlan(plan) {
       photoFrame(photoFor(headline), 420) +
       `<h4>Day ${day}</h4><div class="day-meals">` +
       meals.map((m) =>
-        `<div class="meal"><span class="slot">${esc(SLOTS[m.slot] || m.slot)}</span>
+        `<div class="meal"><span class="slot">${esc(SLOTS[m.slot] || m.slot)}${
+          m.stand_in ? ' <em class="stand-in">· stand-in</em>' : ''}</span>
           <span class="nm">${esc(m.title)}</span>
-          <span class="n">${Math.round(m.protein_g || 0)} g · ${money(m.cost_inr)}</span></div>`
+          <span class="n">${Math.round(m.protein_g || 0)} g · ${money(m.cost_inr)}</span>
+          ${signedIn() ? `<span class="rate">
+            <button class="rate-btn" data-id="${esc(m.recipe_id)}" data-liked="1"
+              title="More like this" aria-label="Like ${esc(m.title)}">&#9829; Like</button>
+            <button class="rate-btn" data-id="${esc(m.recipe_id)}" data-liked="0"
+              title="Never suggest this again" aria-label="Not for me: ${esc(m.title)}">Not for me</button>
+          </span>` : ''}</div>`
       ).join('') + '</div>');
     week.append(card);
+  });
+  // Likes and dislikes shape the next plan: a "not for me" recipe never comes back.
+  week.addEventListener('click', (event) => {
+    const button = event.target.closest('.rate-btn');
+    if (!button) return;
+    rate(button.dataset.id, button.dataset.liked === '1');
+    button.closest('.rate').innerHTML = button.dataset.liked === '1'
+      ? '<span class="rated">Liked</span>' : '<span class="rated">Won\'t suggest again</span>';
   });
   wrap.append(week);
 

@@ -182,7 +182,7 @@ of the code (not your working folder) and runs:
 | Setup | makes a `.venv` and installs `requirements.txt` and `requirements-dev.txt` |
 | Test | `pytest`; an HTML report **opens in your browser** when the stage ends (pass or fail), is kept with the build under **Build Artifacts**, and the results also appear on the build's **Tests** page with a trend graph |
 | Build image | `docker build -t nutrichef-ai:<build number> -t nutrichef-ai:latest .` |
-| Smoke test | starts that image on port 8001 and checks `/health` answers |
+| Smoke test | starts that image and checks `/health` answers (asked from inside the container, so no port can clash) |
 
 Jenkins looks at GitHub every 5 minutes and builds new commits; **Build Now** runs it any time.
 If a stage fails, the rest are skipped and that stage's log shows why. The tests need no
@@ -226,7 +226,3 @@ Datasets and their licenses are listed in [`docs/data_sources.md`](docs/data_sou
 ## Acknowledgements
 
 Some backend patterns were informed by the [mealora-ai-agent](https://github.com/nithinsaikrishnaS/mealora-ai-agent) project (CC BY 4.0 per its README).
-
-
-
-

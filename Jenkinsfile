@@ -60,14 +60,13 @@ pipeline {
 
         stage('Smoke test') {
             steps {
-                // Start the new image on port 8001 (so it does not clash with your app on
-                // 8000) with no data and no keys, and wait up to a minute for /health.
+                // Start the new image with no data and no keys, and ask /health from inside
+                // the container. No port is opened, so nothing on this Mac can clash with it.
                 sh '''
                     docker rm -f nutrichef-smoke 2>/dev/null || true
-                    docker run -d --name nutrichef-smoke -p 127.0.0.1:8001:8000 nutrichef-ai:$BUILD_NUMBER
+                    docker run -d --name nutrichef-smoke nutrichef-ai:$BUILD_NUMBER
                     for i in $(seq 1 30); do
-                        if curl -fsS http://127.0.0.1:8001/health; then
-                            echo
+                        if docker exec nutrichef-smoke python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read().decode())"; then
                             echo "The new image starts and answers /health."
                             exit 0
                         fi

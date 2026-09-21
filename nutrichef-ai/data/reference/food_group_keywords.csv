@@ -1,0 +1,112 @@
+group,keyword
+meat,meat
+meat,mutton
+meat,lamb
+meat,goat
+meat,beef
+meat,veal
+meat,pork
+meat,bacon
+meat,ham
+meat,sausage
+meat,salami
+meat,pepperoni
+meat,keema
+meat,venison
+poultry,chicken
+poultry,turkey
+poultry,duck
+poultry,quail
+fish,fish
+fish,salmon
+fish,tuna
+fish,cod
+fish,sardine
+fish,sardines
+fish,mackerel
+fish,rohu
+fish,katla
+fish,pomfret
+fish,surmai
+fish,hilsa
+fish,bangda
+fish,anchovy
+fish,anchovies
+fish,fish sauce
+seafood,prawn
+seafood,prawns
+seafood,shrimp
+seafood,shrimps
+seafood,crab
+seafood,lobster
+seafood,crayfish
+seafood,squid
+seafood,octopus
+seafood,clam
+seafood,clams
+seafood,mussel
+seafood,mussels
+seafood,oyster
+seafood,oysters
+seafood,scallop
+seafood,scallops
+egg,egg
+egg,eggs
+egg,egg white
+egg,egg whites
+egg,egg yolk
+egg,egg yolks
+egg,albumin
+egg,albumen
+egg,mayonnaise
+egg,mayo
+egg,meringue
+dairy,milk
+dairy,whey
+dairy,casein
+dairy,paneer
+dairy,curd
+dairy,dahi
+dairy,yogurt
+dairy,yoghurt
+dairy,cheese
+dairy,butter
+dairy,ghee
+dairy,cream
+dairy,khoa
+dairy,khoya
+dairy,malai
+dairy,buttermilk
+dairy,chaas
+dairy,lassi
+dairy,condensed milk
+dairy,milk powder
+dairy,ice cream
+honey,honey
+gelatin,gelatin
+gelatin,gelatine
+onion_garlic,onion
+onion_garlic,onions
+onion_garlic,garlic
+onion_garlic,shallot
+onion_garlic,shallots
+onion_garlic,leek
+onion_garlic,leeks
+onion_garlic,spring onion
+onion_garlic,scallion
+onion_garlic,scallions
+onion_garlic,chives
+root_vegetable,potato
+root_vegetable,potatoes
+root_vegetable,sweet potato
+root_vegetable,carrot
+root_vegetable,carrots
+root_vegetable,beetroot
+root_vegetable,beet
+root_vegetable,radish
+root_vegetable,mooli
+root_vegetable,turnip
+root_vegetable,yam
+root_vegetable,arbi
+root_vegetable,colocasia
+root_vegetable,ginger

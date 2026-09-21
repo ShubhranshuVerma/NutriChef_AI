@@ -1,0 +1,40 @@
+scope,code,phrase
+allergen,milk,coconut milk
+allergen,milk,almond milk
+allergen,milk,soy milk
+allergen,milk,soya milk
+allergen,milk,oat milk
+allergen,milk,rice milk
+allergen,milk,coconut cream
+allergen,milk,cream of tartar
+allergen,milk,cocoa butter
+allergen,milk,peanut butter
+allergen,milk,nut butter
+allergen,milk,vegan butter
+allergen,milk,vegan cheese
+allergen,egg,vegan mayonnaise
+allergen,egg,vegan mayo
+allergen,tree_nut,water chestnut
+allergen,tree_nut,water chestnuts
+allergen,wheat_gluten,rice noodles
+allergen,wheat_gluten,gluten-free bread
+allergen,wheat_gluten,gluten-free pasta
+allergen,wheat_gluten,gluten-free oats
+allergen,wheat_gluten,tamari
+group,dairy,coconut milk
+group,dairy,almond milk
+group,dairy,soy milk
+group,dairy,soya milk
+group,dairy,oat milk
+group,dairy,rice milk
+group,dairy,coconut cream
+group,dairy,cream of tartar
+group,dairy,cocoa butter
+group,dairy,peanut butter
+group,dairy,nut butter
+group,dairy,vegan butter
+group,dairy,vegan cheese
+group,egg,vegan mayonnaise
+group,egg,vegan mayo
+group,meat,plant-based meat
+group,meat,mock meat

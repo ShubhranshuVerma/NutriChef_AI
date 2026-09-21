@@ -22,17 +22,13 @@ NutriChef turns requests like *"I'm vegetarian, allergic to soy, have paneer and
 | 10 Agent workflow (LangGraph) | ✅ |
 | 11–12 Meal planning, inventory & budget | ✅ |
 | 13 REST API (FastAPI) | ✅ |
-| 14 Database, accounts & saved profiles | ✅ |
-| 15 Web app (HTML/CSS/JS on FastAPI) | ✅ |
-| 16 Test suite & coverage | ✅ |
-| 17 Observability (LangSmith tracing) | ✅ |
-| 18+ Docker, Jenkins, AWS | ⏳ |
+| 14+ Database, UI, MLOps | ⏳ |
 
 See [`docs/architecture.md`](docs/architecture.md).
 
 ## Tech stack
 
-Python 3.11 · Pandas · scikit-learn · MLflow · LangChain · LangGraph · LangSmith · Gemini · ChromaDB · HuggingFace embeddings · FastAPI · SQLite (SQLAlchemy) · Pytest · Docker · Jenkins · AWS EC2
+Python 3.11 · Pandas · scikit-learn · MLflow · LangChain · LangGraph · Gemini · ChromaDB · HuggingFace embeddings · FastAPI · SQLite (SQLAlchemy) · Streamlit · Pytest · Docker · Jenkins · AWS EC2
 
 ## Quick start (macOS)
 
@@ -42,26 +38,21 @@ cd NutriChef_AI
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-dev.txt
-cp .env.example .env                        # add GOOGLE_API_KEY, and LANGSMITH_API_KEY for traces
+cp .env.example .env                        # then add your GOOGLE_API_KEY
 python -m scripts.check                     # settings + data status
 python -m scripts.check --ping-llm          # also checks Gemini (1 small request)
 pytest
-pytest --cov=app --cov-report=term-missing  # coverage, and which lines are missing
 ```
-
-The suite is 334 tests and covers 95% of `app/`. What is left uncovered needs
-either the big data files or a live Gemini key — the download helpers, the index
-loaders, and the two functions that call the model.
 
 ## Project layout
 
 ```text
 app/        backend package (api, agents, core, schemas, services, rag, ml, nutrition, validation, database)
-web/        the website (index.html, styles.css, app.js)
+ui/         Streamlit frontend
 ml/         training & evaluation scripts, artifacts
 data/       reference/ + knowledge_base/ (committed); raw/, processed/, interactions/ (git-ignored)
 scripts/    one-off utilities (setup checks, data download, seeding)
-tests/      unit, integration, api, web, agents, rag, ml
+tests/      unit, integration, api, agents, rag, ml
 docs/       architecture, data sources
 ```
 
@@ -74,74 +65,17 @@ python -m scripts.demo_meal_plan --no-llm --days 3 --budget 800
 python -m scripts.demo_meal_plan --slots breakfast,lunch,dinner,snack   # fuller days
 ```
 
-LLM answers are cached on disk (`data/processed/llm_cache`), so repeating a request costs no
-Gemini quota and returns instantly — the free tier allows only a few requests per day. After
-changing a prompt, clear it:
+## API
 
 ```bash
-python -m scripts.check --clear-llm-cache
+uvicorn app.api.main:app --reload     # then open http://127.0.0.1:8000/docs
 ```
-
-How long Gemini takes depends mostly on how hard it thinks before answering. `LLM_THINKING=low`
-in `.env` is the default here (the model's own default is `medium`). To see the difference on
-your key — each run uses 2-4 requests of the daily quota:
-
-```bash
-python -m scripts.demo_recipe --no-cache --thinking medium
-python -m scripts.demo_recipe --no-cache --thinking low
-```
-
-## Watching it think (LangSmith)
-
-Put a LangSmith key in `.env` and every run is traced — each agent, each prompt and reply,
-and the deterministic steps too:
-
-```bash
-LANGSMITH_API_KEY=lsv2_pt_...
-LANGSMITH_PROJECT=nutrichef-ai
-```
-
-Then open [smith.langchain.com](https://smith.langchain.com) and pick the project. A recipe
-request reads **understand → search → write → nutrition.calculate → checks.safety → finish**,
-with **critique → revise** in between only when Python found something to fix, and the time
-each step took. A meal plan shows **checks.safety_filter** (3,133 in, how many safe) and
-**ranker.score_all** (the top five) as single steps. The nutrition and safety steps are traced on
-purpose: the model proposes, Python decides, and a trace showing only the model would be
-showing the half that decides nothing.
-
-No key means no tracing, no network calls and no change in behaviour. `python -m scripts.check`
-says which it is.
-
-## Run it
-
-```bash
-uvicorn app.api.main:app --reload
-```
-
-| | |
-|---|---|
-| http://127.0.0.1:8000 | **the website** |
-| http://127.0.0.1:8000/docs | the API reference |
-
-The site in `web/` is plain HTML, CSS and JavaScript — no build step, no framework — served by
-FastAPI itself, so one command runs the whole product. The food photography is loaded from
-[Pexels](https://www.pexels.com/license/) under their free licence, so nothing is committed to
-this repository; with no internet each photo frame falls back to a warm gradient and the page
-still works.
 
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/health` | what is ready (recipes, model, index, LLM key) |
-| POST | `/api/v1/auth/signup`, `/login` | create an account, get a JWT |
-| GET/PUT | `/api/v1/users/me/profile` | saved diet, allergies, exclusions, targets |
-| GET/PUT | `/api/v1/users/me/inventory` | what you have at home |
-| POST | `/api/v1/users/me/feedback` | like/dislike a recipe |
 | POST | `/api/v1/recipes/generate` | Scenario 1 — free text → one checked recipe |
 | POST | `/api/v1/plans/generate` | Scenario 2 — meal plan in a budget, using your inventory |
-
-Both `generate` endpoints work with or without a token. With one, your saved allergies and
-exclusions are **added** to whatever the request asks for — a request can never remove them —
-and your saved inventory is used when the request does not send one.
 
 ## Data
 

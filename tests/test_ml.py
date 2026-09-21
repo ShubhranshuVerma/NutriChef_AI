@@ -61,3 +61,10 @@ def test_a_new_user_gets_the_rules_and_a_regular_gets_the_model():
 
 def test_no_trained_model_yet_is_fine(tmp_path):
     assert ranker.load_model(tmp_path / "missing.joblib") == (None, None)
+
+
+def test_a_model_file_that_cannot_be_read_falls_back_to_the_rules(tmp_path):
+    """A model saved by another scikit-learn version must not break every meal plan."""
+    broken = tmp_path / "ranker.joblib"
+    broken.write_bytes(b"not a model")
+    assert ranker.load_model(broken) == (None, None)

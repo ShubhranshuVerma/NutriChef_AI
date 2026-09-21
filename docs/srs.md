@@ -275,10 +275,10 @@ The endpoint list is in *Architecture (v2)*, section 10.
 
 | ID | Requirement | Status |
 |---|---|---|
-| NFR-19 | The test suite runs offline with no API key, using a fake LLM (106 tests; 3 need the real data) | Met |
+| NFR-19 | The test suite runs offline with no API key, using a fake LLM (107 tests; 3 need the real data) | Met |
 | NFR-20 | Business logic is in services and engines, not in routes or the website | Met |
 | NFR-21 | With a LangSmith key, every LLM call and every recipe-workflow step is traced; without one nothing is sent | Met |
-| NFR-22 | Runs in a Docker container and deploys to AWS EC2 through Jenkins | **Not yet** (Phases 18-20) |
+| NFR-22 | Runs in a Docker container (non-root, health-checked, no secrets or licensed data in the image) and deploys to AWS EC2 through Jenkins | **Partly met**: Docker done; Jenkins and EC2 are Phases 19-20 |
 
 ---
 
@@ -318,7 +318,7 @@ All tests are in `tests/`. Run with `python -m pytest -q`.
 | Item | Requirement | Planned |
 |---|---|---|
 | Pass each user's interaction count to the ranker | FR-40 | Next change |
-| Docker image, Jenkins pipeline, EC2 deployment | NFR-22 | Phases 18-20 |
+| Jenkins pipeline, EC2 deployment | NFR-22 | Phases 19-20 |
 | Account deletion endpoint | FR-12 | Phase 22 (hardening) |
 | Per-user rate limit on LLM endpoints | NFR-15 | Phase 22 (hardening) |
 | Use the guidance collection in the recipe workflow | — | Optional |

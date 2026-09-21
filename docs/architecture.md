@@ -410,7 +410,23 @@ step's seconds. Compare the revision count too — if the writer misses targets 
 
 ## 13. Deployment
 
-*(Phases 18-20 - not built yet.)*
+Phase 18 (Docker) is built; Phases 19-20 (Jenkins, EC2) are the plan below.
+
+**Docker, as built.** One image runs the API and the website (`Dockerfile`, `compose.yml`,
+`.dockerignore`):
+
+| Choice | Why |
+|---|---|
+| `python:3.11-slim`, then CPU-only PyTorch, then `requirements.txt`, then the code | CPU PyTorch saves about 2 GB; libraries before code, so a code change rebuilds in seconds |
+| Code and small reference files only in the image | RecipeNLG is non-commercial and must not be shipped; the library, index, database and saved answers are mounted from `data/processed`, the ranker read-only from `ml/artifacts` |
+| `.env` read by compose at run time | keys never enter the image |
+| a normal user (`chef`, uid 1000) | the app does not run as root |
+| `HEALTHCHECK` on `/health` | Docker (and later EC2) can tell when it is up or stuck |
+| a named volume for the embedding model | downloaded once, not on every restart |
+| port bound to `127.0.0.1` locally | only this computer can reach it until deployment opens it deliberately |
+
+A ranker saved by a different scikit-learn version cannot always be read back, so `load_model`
+falls back to the rule score and logs a warning instead of breaking every plan.
 
 ```mermaid
 flowchart LR
@@ -457,6 +473,7 @@ nutrichef-ai/
 ├── scripts/          build_data.py, train_ranker.py, demo.py, check.py
 ├── tests/            one file per area + conftest.py, helpers.py
 ├── docs/             architecture.md, data_sources.md
+├── Dockerfile  compose.yml  .dockerignore
 ├── requirements.txt  requirements-dev.txt  pytest.ini  .env.example  .gitignore
 └── README.md
 ```

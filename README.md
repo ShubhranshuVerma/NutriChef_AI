@@ -26,7 +26,8 @@ NutriChef turns requests like *"I'm vegetarian, allergic to soy, have paneer and
 | 15 Web app (HTML/CSS/JS on FastAPI) | ✅ |
 | 16 Test suite & coverage | ✅ |
 | 17 Observability (LangSmith tracing) | ✅ |
-| 18+ Docker, Jenkins, AWS | ⏳ |
+| 18 Docker | ✅ |
+| 19–20 Jenkins, AWS | ⏳ |
 
 See [`docs/architecture.md`](docs/architecture.md).
 
@@ -141,6 +142,34 @@ still works.
 Both `generate` endpoints work with or without a token. With one, your saved allergies and
 exclusions are **added** to whatever the request asks for — a request can never remove them —
 and your saved inventory is used when the request does not send one.
+
+## Run it in Docker
+
+Needs [Docker Desktop](https://www.docker.com/products/docker-desktop/). Build the data first
+(see **Data** below), because the image holds only the code: your recipe library, search index,
+database, saved Gemini answers and trained ranker stay on your disk and are mounted in.
+
+```bash
+docker compose up --build        # first build takes a few minutes (PyTorch)
+```
+
+Open http://127.0.0.1:8000. Stop it with Ctrl+C, or run it in the background:
+
+```bash
+docker compose up -d
+docker compose logs -f
+docker compose down
+```
+
+| File | What it does |
+|---|---|
+| `Dockerfile` | Python 3.11, CPU-only PyTorch (about 2 GB smaller), the requirements, then the code; runs as a normal user, with a health check on `/health` |
+| `compose.yml` | reads your keys from `.env`, mounts `data/processed` and `ml/artifacts`, keeps the embedding model between restarts |
+| `.dockerignore` | keeps `.env`, raw data and local clutter out of the image |
+
+`.env` is never copied into the image. The ranker must be trained with the same scikit-learn
+version the image installs (the one in `requirements.txt`); if it cannot be read, plans still
+work on the rule score and the log says to run `python -m scripts.train_ranker`.
 
 ## Data
 

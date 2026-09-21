@@ -10,7 +10,10 @@ import joblib
 import pandas as pd
 
 from app.core.config import PROJECT_ROOT
+from app.core.logging import get_logger
 from app.ml.features import FEATURE_NAMES, build_features, feature_row
+
+log = get_logger(__name__)
 
 MODEL_PATH = PROJECT_ROOT / "ml" / "artifacts" / "ranker.joblib"
 MODEL_INFO_PATH = PROJECT_ROOT / "ml" / "artifacts" / "ranker_info.json"
@@ -36,8 +39,16 @@ def load_model(path=MODEL_PATH):
     """Return (model, info) or (None, None) if no model has been trained yet."""
     if not path.exists():
         return None, None
+    try:
+        model = joblib.load(path)
+    except Exception as error:
+        # A model saved by a different scikit-learn version often cannot be read back.
+        # Plans still work on the rule score; retrain to use the model again.
+        log.warning("could not load the ranking model (%s: %s) - using the rule score. "
+                    "Run: python -m scripts.train_ranker", type(error).__name__, error)
+        return None, None
     info = json.loads(MODEL_INFO_PATH.read_text()) if MODEL_INFO_PATH.exists() else {}
-    return joblib.load(path), info
+    return model, info
 
 
 def score_recipe(user, recipe, model=None, n_interactions=0):

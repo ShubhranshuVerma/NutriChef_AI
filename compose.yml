@@ -1,0 +1,29 @@
+# Run NutriChef in Docker:
+#
+#   docker compose up --build      build the image and start it
+#   docker compose up -d           start it in the background
+#   docker compose logs -f         watch the logs
+#   docker compose down            stop it
+#
+# Then open http://127.0.0.1:8000
+
+services:
+  nutrichef:
+    build: .
+    image: nutrichef-ai
+    # 127.0.0.1: only this computer can reach it. Deployment changes this.
+    ports:
+      - "127.0.0.1:8000:8000"
+    # Your keys stay in .env on your disk; they are never copied into the image.
+    env_file: .env
+    volumes:
+      # recipe library, search index, database and saved Gemini answers
+      - ./data/processed:/app/data/processed
+      # the trained ranker (read-only)
+      - ./ml/artifacts:/app/ml/artifacts:ro
+      # the embedding model, downloaded once and kept between restarts
+      - model-cache:/app/.cache
+    restart: unless-stopped
+
+volumes:
+  model-cache:

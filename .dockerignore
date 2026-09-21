@@ -1,0 +1,33 @@
+# Keep secrets, data and local clutter out of the image.
+
+# secrets
+.env
+.env.*
+*.pem
+*.key
+
+# local Python and git
+.git
+.venv
+venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.coverage
+htmlcov
+
+# data built on your machine: mounted at run time, never copied in
+data/raw
+data/processed
+data/interactions
+**/RecipeNLG*
+**/full_dataset.csv
+ml/artifacts
+mlflow.db
+mlruns
+
+# not needed to run the app
+tests
+docs
+*.md
+.DS_Store

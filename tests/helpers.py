@@ -65,12 +65,13 @@ def recipe_tables():
             "price_per_gram": {"paneer": 0.4, "egg": 0.14}, "matcher": IngredientMatcher()}
 
 
+# The request used by the recipe workflow tests. Read by plain Python, it means:
+# eggetarian, allergic to soy, no whey, has paneer and eggs, a main under 600 kcal
+# with at least 25 g protein.
+REQUEST = ("Eggetarian dinner under 600 calories with at least 25 g protein. "
+           "Allergic to soy, no whey. I have paneer and eggs.")
+
 # Scripted Gemini replies for the recipe workflow.
-REQUIREMENTS = json.dumps({
-    "diet": "eggetarian", "allergies": ["soy"], "exclude": ["whey"],
-    "have_ingredients": ["paneer", "eggs"], "course": "main", "max_kcal": 600,
-    "min_protein_g": 25,
-})
 GOOD_RECIPE = json.dumps({
     "title": "Paneer Egg Bhurji", "servings": 2,
     "ingredients": ["200 g paneer", "100 g egg", "80 g onion", "10 g oil"],

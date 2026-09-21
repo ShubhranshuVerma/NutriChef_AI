@@ -5,9 +5,9 @@ Run from the project root:
     python -m scripts.demo plan        # Scenario 2: a week of meals in a budget
 
     python -m scripts.demo recipe --request "quick vegan breakfast under 400 calories"
-    python -m scripts.demo plan --days 3 --budget 800 --no-llm
+    python -m scripts.demo plan --days 3 --budget 800
 
-Timing Gemini itself (each run spends 2-4 requests of your daily quota):
+Timing Gemini itself (each run spends 1-3 requests of your daily quota):
     python -m scripts.demo recipe --no-cache --thinking medium    # the model's default
     python -m scripts.demo recipe --no-cache --thinking low       # ours
 """
@@ -19,9 +19,6 @@ RECIPE_REQUEST = ("I am vegetarian, allergic to soy, don't want whey, have panee
                   "vegetables at home, and want a high-protein dinner under 600 calories.")
 PLAN_REQUEST = ("Create a 7-day vegetarian high-protein meal plan under Rs 1500 "
                 "using ingredients I already have.")
-
-# Used by `plan --no-llm`, so that demo also runs offline.
-PLAN_WITHOUT_LLM = {"diet": "vegetarian", "allergies": [], "exclude": [], "min_protein_g": 25}
 
 # What is in the fridge today. In the app this comes from the user's saved kitchen.
 PANTRY = [
@@ -77,10 +74,7 @@ def show_plan(args):
 
     request_text = args.request or PLAN_REQUEST
     slots = [s.strip() for s in args.slots.split(",") if s.strip()]
-    if args.no_llm:
-        request = dict(PLAN_WITHOUT_LLM)
-    else:
-        request = planner.constraints_from_text(request_text)
+    request = planner.constraints_from_text(request_text)
 
     plan = planner.make_plan(request, days=args.days, slots=slots,
                              budget_inr=args.budget, inventory=PANTRY)
@@ -140,7 +134,6 @@ def main():
     parser.add_argument("--days", type=int, default=7, help="plan: how many days")
     parser.add_argument("--budget", type=float, default=1500, help="plan: budget in rupees")
     parser.add_argument("--slots", default="breakfast,lunch,dinner", help="plan: meals per day")
-    parser.add_argument("--no-llm", action="store_true", help="plan: skip the LLM step")
     args = parser.parse_args()
 
     # Settings are read once, so these have to be in place before anything else loads.

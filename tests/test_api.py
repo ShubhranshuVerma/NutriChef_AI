@@ -63,6 +63,18 @@ def test_a_plan_request_reaches_the_planner(client, ready, monkeypatch):
     assert seen["request"]["diet"] == "vegetarian"
 
 
+def test_a_plan_in_plain_words_needs_no_gemini_key(client, ready, monkeypatch):
+    seen = {}
+    monkeypatch.setattr(routes, "llm_ready", lambda: False)
+    monkeypatch.setattr(routes.planner, "make_plan",
+                        lambda request, **options: seen.update(request=request) or FAKE_PLAN)
+    response = client.post("/api/v1/plans/generate",
+                           json={"request": "vegetarian, allergic to soy, high protein"})
+    assert response.status_code == 200
+    assert seen["request"]["allergies"] == ["soy"]
+    assert seen["request"]["min_protein_g"] == 25
+
+
 @pytest.mark.parametrize("body", [{"request": "hi"}, {"request": "x" * 1001}])
 def test_bad_recipe_requests_are_rejected(client, ready, body):
     assert client.post("/api/v1/recipes/generate", json=body).status_code == 422

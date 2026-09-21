@@ -69,8 +69,8 @@ docs/       architecture, data sources
 
 ```bash
 python -m scripts.demo recipe        # Scenario 1: one request -> checked recipe (uses your Gemini key)
-python -m scripts.demo plan          # Scenario 2: 7-day plan in a budget + shopping list
-python -m scripts.demo plan --no-llm --days 3 --budget 800
+python -m scripts.demo plan          # Scenario 2: 7-day plan in a budget + shopping list (no Gemini key needed)
+python -m scripts.demo plan --days 3 --budget 800
 python -m scripts.demo plan --slots breakfast,lunch,dinner,snack   # fuller days
 ```
 
@@ -84,7 +84,7 @@ python -m scripts.check --clear-llm-cache
 
 How long Gemini takes depends mostly on how hard it thinks before answering. `LLM_THINKING=low`
 in `.env` is the default here (the model's own default is `medium`). To see the difference on
-your key — each run uses 2-4 requests of the daily quota:
+your key — each run uses 1-3 requests of the daily quota:
 
 ```bash
 python -m scripts.demo recipe --no-cache --thinking medium

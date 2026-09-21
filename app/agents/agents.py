@@ -1,5 +1,6 @@
-"""The four agents. Three are LLM calls: build a prompt, call Gemini, check the answer
-with Pydantic. The critic is plain Python, built from our own check results.
+"""The four agents. Two are LLM calls (write and revise the recipe): build a prompt, call
+Gemini, check the answer with Pydantic. The other two are plain Python: the Requirement
+Agent (app/agents/requirements.py) and the critic, built from our own check results.
 
 Nothing here decides what is safe - that is the job of app/nutrition/checks.py.
 """
@@ -12,12 +13,9 @@ from pydantic import ValidationError
 from app.agents import prompts
 from app.core.llm import answer_text, invoke_with_retry
 from app.core.logging import get_logger
-from app.agents.schemas import ALLERGENS, DIETS, Constraints, Critique, RecipeDraft
+from app.agents.schemas import Constraints, Critique, RecipeDraft
 
 log = get_logger(__name__)
-
-MAX_REQUEST_LENGTH = 1000
-
 
 def parse_json(text):
     """Read the JSON out of an LLM answer, even if it is wrapped in ```json fences."""
@@ -44,22 +42,7 @@ def ask(llm, prompt, model, retries=1):
     raise RuntimeError("unreachable")
 
 
-# ---------- 1. requirements ----------
-
-def extract_requirements(request_text, llm):
-    """Free text -> Constraints."""
-    text = str(request_text)[:MAX_REQUEST_LENGTH]
-    constraints = ask(llm, prompts.REQUIREMENTS_PROMPT.format(request=text), Constraints)
-    return clean_constraints(constraints)
-
-
-def clean_constraints(constraints):
-    """Drop anything the LLM invented that is not on our lists."""
-    if constraints.diet not in DIETS:
-        constraints.diet = None
-    constraints.allergies = [a for a in constraints.allergies if a in ALLERGENS]
-    return constraints
-
+# ---------- 1. requirements: plain Python, see app/agents/requirements.py ----------
 
 def merge_with_profile(constraints, profile):
     """Combine the request with the saved profile.

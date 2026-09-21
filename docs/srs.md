@@ -33,7 +33,7 @@ It is an educational, non-commercial project.
 | Term | Meaning |
 |---|---|
 | LLM | Large language model; here Google Gemini Flash, called through LangChain |
-| Agent | One step of the recipe workflow: 3 send a prompt to the LLM and validate the reply; the critic is plain Python |
+| Agent | One step of the recipe workflow. The Requirement Agent and the critic are plain Python; the Recipe and Revision Agents call the LLM and validate the reply |
 | Hard rule | A check a recipe must pass, or it is reported as `failed` |
 | Warning | A check that is reported but does not fail a recipe |
 | Recipe library | The pre-built set of tagged recipes (`recipes_tagged.jsonl`) the planner chooses from |
@@ -56,7 +56,7 @@ It is an educational, non-commercial project.
 
 A self-contained system: one FastAPI process serves the API and the website, with SQLite for
 user data, files for the recipe library and ChromaDB for search. External services are Gemini
-(required for Scenario 1) and LangSmith (optional tracing).
+(required to write recipes) and LangSmith (optional tracing).
 
 ```mermaid
 flowchart LR
@@ -137,7 +137,7 @@ The endpoint list is in *Architecture (v2)*, section 10.
 
 | System | Use | Required |
 |---|---|---|
-| Google Gemini (via `langchain-google-genai`) | 3 agents; JSON-only replies, temperature 0, fixed seed | For Scenario 1 and free-text plans |
+| Google Gemini (via `langchain-google-genai`) | Recipe and Revision Agents; JSON-only replies, temperature 0, fixed seed | For Scenario 1 only |
 | ChromaDB + MiniLM embeddings | recipe search | Optional (recipe runs without it) |
 | SQLite (SQLAlchemy) | user data | Yes |
 | MLflow | training runs | Training only |
@@ -174,7 +174,7 @@ The endpoint list is in *Architecture (v2)*, section 10.
 | ID | Requirement | Status |
 |---|---|---|
 | FR-13 | Accept a free-text request of 3–1,000 characters | Met |
-| FR-14 | The Requirement Agent turns it into structured constraints; invented diets and allergens are dropped | Met |
+| FR-14 | The Requirement Agent (plain Python, no LLM) turns it into structured constraints using fixed word lists and numbers with units; only known diets and allergen codes can come out | Met |
 | FR-15 | Saved allergies and exclusions are added to the request's (union rule), never removed | Met |
 | FR-16 | Similar recipes that pass the diet, allergen and calorie filters are retrieved and given to the Recipe Agent, with their source links | Met |
 | FR-17 | The Recipe Agent writes one recipe with quantities in grams or millilitres | Met |
@@ -199,7 +199,7 @@ The endpoint list is in *Architecture (v2)*, section 10.
 
 | ID | Requirement | Status |
 |---|---|---|
-| FR-29 | Accept either free text (read by the LLM) or structured fields; 1–14 days; 1–6 slots per day | Met |
+| FR-29 | Accept either free text (read by the Python Requirement Agent, no Gemini key needed) or structured fields; 1–14 days; 1–6 slots per day | Met |
 | FR-30 | Only recipes that pass the hard rules for this person can be chosen | Met |
 | FR-31 | When a budget is given, the plan's total cost never exceeds it; a budget of zero buys nothing | Met |
 | FR-32 | Recipes with less than 80 % of ingredient cost known are not used when a budget applies | Met |
@@ -237,7 +237,7 @@ The endpoint list is in *Architecture (v2)*, section 10.
 | ID | Requirement | Status |
 |---|---|---|
 | NFR-1 | A 7-day, 3-meal plan over the full library (~3,100 recipes) is built in under 1 second after the first request | Met — measured ≈ 24 ms, tracing on or off |
-| NFR-2 | A clean recipe costs 2 Gemini calls; one rewrite costs 3 | Met |
+| NFR-2 | A clean recipe costs 1 Gemini call; one rewrite costs 2 | Met |
 | NFR-3 | A repeated prompt is answered from the disk cache without calling Gemini | Met |
 | NFR-4 | Gemini "busy" (503) errors are retried up to 3 times with 4 s then 8 s waits | Met |
 
@@ -249,7 +249,7 @@ The endpoint list is in *Architecture (v2)*, section 10.
 | NFR-6 | A missing Gemini key or recipe library gives a clear 503, not a crash | Met |
 | NFR-7 | A malformed LLM answer is asked for once more, then rejected | Met |
 | NFR-8 | Unexpected errors return a fixed 500 message; details only go to the logs | Met |
-| NFR-23 | Deterministic results: the same request gives the same recipe and the same checks every time (saved answers, temperature 0 and a fixed seed, a Python critic, prompts built the same way every time). Clearing the cache or changing a prompt, model or index starts fresh | Met |
+| NFR-23 | Deterministic results. The Requirement Agent, the critic, the checks and the planner are truly deterministic (plain Python). The two Gemini agents are repeatable: saved answers, temperature 0 and a fixed seed give the same recipe for the same request; clearing the cache or changing a prompt, model or index starts fresh | Met |
 
 ### 5.3 Security and privacy
 
@@ -259,7 +259,7 @@ The endpoint list is in *Architecture (v2)*, section 10.
 | NFR-10 | API keys are `SecretStr` and never printed; logs mask anything that looks like a key | Met |
 | NFR-11 | In production, a weak or placeholder JWT secret (under 32 characters) stops the app from starting | Met |
 | NFR-12 | Every input has size and range limits (text ≤ 1,000 chars, days ≤ 14, ≤ 10 allergies, ≤ 100 inventory items …) | Met |
-| NFR-13 | Prompt injection: user text is fenced as data, other agents get structured data only, all LLM output is schema-validated, and safety does not depend on the LLM | Met |
+| NFR-13 | Prompt injection: the person's raw text never reaches the LLM (only short, checked fields do), all LLM output is schema-validated, and safety does not depend on the LLM | Met |
 | NFR-14 | Only minimal personal data is stored: email, password hash, profile, inventory, feedback | Met |
 | NFR-15 | A per-user rate limit on the LLM endpoints | **Not yet** |
 
@@ -275,7 +275,7 @@ The endpoint list is in *Architecture (v2)*, section 10.
 
 | ID | Requirement | Status |
 |---|---|---|
-| NFR-19 | The test suite runs offline with no API key, using a fake LLM (92 tests; 3 need the real data) | Met |
+| NFR-19 | The test suite runs offline with no API key, using a fake LLM (98 tests; 3 need the real data) | Met |
 | NFR-20 | Business logic is in services and engines, not in routes or the website | Met |
 | NFR-21 | With a LangSmith key, every LLM call and every recipe-workflow step is traced; without one nothing is sent | Met |
 | NFR-22 | Runs in a Docker container and deploys to AWS EC2 through Jenkins | **Not yet** (Phases 18-20) |
@@ -292,12 +292,13 @@ All tests are in `tests/`. Run with `python -m pytest -q`.
 | FR-2, FR-3 | `test_auth.py`: `test_a_stored_password_is_a_hash_not_the_password`, `test_a_password_bcrypt_would_quietly_cut_short_is_refused` |
 | FR-6, FR-7 | `test_auth.py`: `test_a_wrong_password_and_an_unknown_email_look_the_same`, `test_an_expired_token_is_refused`, `test_a_token_signed_with_another_secret_is_refused` |
 | FR-8, FR-15, FR-37 | `test_auth.py`: `test_a_saved_profile_comes_back`, `test_saved_allergies_are_added_to_a_plan_request`, `test_a_request_cannot_drop_a_saved_allergy`, `test_the_saved_kitchen_is_used_when_the_request_sends_none` |
-| FR-14, NFR-13 | `test_agents.py`: `test_invented_diets_and_allergens_are_dropped`, `test_the_persons_text_is_passed_as_data_not_instructions` |
+| FR-14, NFR-13 | `test_agents.py`: `test_the_request_is_read_without_an_llm`, `test_eggs_at_home_do_not_make_a_vegetarian_eat_eggs`, `test_allergies_are_found_in_everyday_wording`, `test_a_list_stops_where_the_next_part_of_the_sentence_starts`, `test_numbers_are_read_with_their_units`, `test_the_persons_text_never_reaches_gemini` |
 | FR-15 | `test_agents.py`: `test_saved_allergies_are_only_ever_added`, `test_a_saved_allergy_fails_a_recipe_the_request_never_mentioned` |
 | FR-16 | `test_agents.py`: `test_search_results_reach_the_recipe_prompt`, `test_search_skips_allergens_wrong_diets_and_too_many_calories` |
 | FR-18 | `test_agents.py`: `test_nutrition_comes_from_the_calculator_not_the_llm`; `test_nutrition.py` (14 tests) |
-| FR-20 – FR-22, NFR-2 | `test_agents.py`: `test_a_clean_first_draft_takes_two_gemini_calls`, `test_an_unsafe_draft_is_rewritten_until_it_passes`, `test_breaking_a_hard_rule_always_goes_to_the_critic`, `test_a_draft_short_on_protein_is_rewritten_too`, `test_it_gives_up_after_two_rewrites_and_says_so` |
-| FR-21, NFR-23 | `test_agents.py`: `test_the_critic_gives_the_same_answer_every_time`, `test_the_same_request_always_gives_the_same_recipe`, `test_gemini_is_asked_for_its_most_likely_answer` |
+| FR-20 – FR-22, NFR-2 | `test_agents.py`: `test_a_clean_first_draft_takes_one_gemini_call`, `test_an_unsafe_draft_is_rewritten_until_it_passes`, `test_breaking_a_hard_rule_always_goes_to_the_critic`, `test_a_draft_short_on_protein_is_rewritten_too`, `test_it_gives_up_after_two_rewrites_and_says_so` |
+| FR-29 | `test_api.py`: `test_a_plan_in_plain_words_needs_no_gemini_key` |
+| FR-21, NFR-23 | `test_agents.py`: `test_the_same_words_always_give_the_same_constraints`, `test_the_critic_gives_the_same_answer_every_time`, `test_the_same_request_always_gives_the_same_recipe`, `test_gemini_is_asked_for_its_most_likely_answer` |
 | FR-24 – FR-28 | `test_checks.py` (12 tests) |
 | FR-30 – FR-36 | `test_planner.py` (12 tests) |
 | FR-38 – FR-41 | `test_ml.py` (6 tests) |

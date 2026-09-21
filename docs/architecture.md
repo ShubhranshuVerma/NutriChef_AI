@@ -32,12 +32,11 @@ flowchart TB
     G --> ENG["Deterministic engines<br/>nutrition · checks"]
     PL --> ENG
     PL --> ML["Ranker (scikit-learn)"]
-    PL -.->|"free text only"| LLM
     G -.->|"traces"| LS[("LangSmith")]
 ```
 
-One Python process serves both the API and the website. The recipe path uses the LLM; the
-meal-plan path only uses it to read a free-text request, and is otherwise pure Python.
+One Python process serves both the API and the website. Only writing and rewriting a recipe
+uses the LLM; the meal-plan path, and reading any request, is plain Python.
 
 ---
 
@@ -47,7 +46,7 @@ meal-plan path only uses it to read a free-text request, and is otherwise pure P
 |---|---|---|---|
 | API | `app/api/` | Routing, request/response schemas, error mapping | No |
 | Services | `app/services/` | `recipe_service` (Scenario 1), `planner` (Scenario 2) | No (calls the agents) |
-| Agents | `app/agents/` | 4 agents (3 call Gemini), the LangGraph workflow, their output schemas, RAG search (`rag.py`) | Yes (search: embeddings only) |
+| Agents | `app/agents/` | 4 agents (2 call Gemini), the LangGraph workflow, their output schemas, RAG search (`rag.py`) | Yes (search: embeddings only) |
 | Nutrition engine | `app/nutrition/` | Parse → grams → nutrients and cost; allergen, diet and limit checks (`checks.py`) | No |
 | ML | `app/ml/` | Features, ranker, cold-start blend, metrics. Training is `scripts/train_ranker.py` | No |
 | Data | `app/data/` | Read USDA / RecipeNLG / reference files, clean them into recipes | No |
@@ -63,28 +62,32 @@ would add files without adding clarity.
 
 ## 4. Agents — who does what
 
-Four agents, in `app/agents/agents.py`. Three call Gemini; the critic is plain Python.
-Everything that must be *correct* is deterministic and lives elsewhere.
+Four agents. Two are truly deterministic plain Python; two call Gemini, only where writing is
+needed. Everything that must be *correct* is deterministic and lives elsewhere.
 
 | Agent | Input → Output | Where |
 |---|---|---|
-| Requirement | free text → `Constraints` (diet, allergies, exclusions, targets) | `extract_requirements` |
+| Requirement (Python, no LLM) | free text → `Constraints`: words from fixed lists (diets, allergens, courses) and numbers next to units ("600 calories", "25 g protein") | `app/agents/requirements.py` |
 | Recipe | constraints + RAG context → one `RecipeDraft`, quantities in grams | `generate_recipe` |
 | Critic (Python, no LLM) | our check results → `Critique`: each failure and warning, with a fixed piece of advice | `critique_recipe` |
 | Revision | recipe + critique → a fixed `RecipeDraft` | `revise_recipe` |
 
 Every answer is cached on disk by `CachedLLM` (`app/core/llm.py`), keyed by the prompt **and**
 the model name. The free Gemini tier allows about 20 requests per day per project per model, and
-one recipe run costs 2-4 of them, so without a cache a UI is unusable. The trade-off is that a
+one recipe run costs 1-3 of them, so without a cache a UI is unusable. The trade-off is that a
 cached answer is the old answer: change a prompt, clear the cache.
 
-**Deterministic by design.** The same request always gives the same result:
+**Deterministic by design.** Two agents are truly deterministic: the Requirement Agent and the
+critic are plain Python, so the same input always gives the same output, on any machine. The two
+Gemini agents cannot be: Google runs the model on shared servers, where tiny rounding
+differences can change a word, and can update it under the same name. They are made
+*repeatable* instead, so the same request gives the same result on this machine:
 
 1. **Saved answers.** The cache is on by default (`LLM_CACHE=true`), so a prompt Gemini has
    answered once is answered from disk from then on, word for word.
 2. **Most likely answer.** Gemini is called with `temperature=0` and `seed=42` (`app/core/llm.py`).
    Some Gemini models ignore these, which is why the cache is the real guarantee.
-3. **No LLM where rules will do.** The critic is built from the check results in Python, and
+3. **No LLM where rules will do.** Reading the request and the critique are Python, and
    nutrition, allergens, diets, checks, search, ranking and planning were already Python.
 4. **Stable prompts.** Each prompt is built the same way every time (saved allergies are merged
    in sorted order), so the same request always hits the same saved answer.
@@ -92,7 +95,7 @@ cached answer is the old answer: change a prompt, clear the cache.
 Two things still change the answer: clearing the cache, or changing a prompt, the model name or
 the search index (the prompt text changes, so it is a new question).
 
-`invoke_with_retry` (same file) sits in `agents.ask`, so all three Gemini agents share it. A 503 ("high
+`invoke_with_retry` (same file) sits in `agents.ask`, so both Gemini agents share it. A 503 ("high
 demand") is temporary and is retried up to three times with a growing pause; a 429 is the daily
 allowance and is not retried at all - it raises `QuotaExhausted`, which the API turns into a 503
 with a sentence the person can act on. Together with the cache this means a run that dies
@@ -109,7 +112,7 @@ recipe is safe - `check_recipe` does, and its verdict sets the returned status.
 
 ```mermaid
 flowchart TD
-    A["User request"] --> B["understand<br/>Requirement Agent → Constraints"]
+    A["User request"] --> B["understand<br/>Requirement Agent (Python) → Constraints"]
     B --> C["merge with the saved profile<br/>(allergies/exclusions: union only)"]
     C --> D["search<br/>RAG, filtered by diet and allergens"]
     D --> E["write<br/>Recipe Agent → one draft"]
@@ -146,7 +149,7 @@ is deterministic — the LLM's only appearance is the optional first box.
 
 ```mermaid
 flowchart TD
-    A["Request: 7 days, vegetarian,<br/>high protein, ≤ ₹1500"] --> B["Requirement Agent → Constraints<br/>(skipped if the fields are given directly)"]
+    A["Request: 7 days, vegetarian,<br/>high protein, ≤ ₹1500"] --> B["Requirement Agent (Python) → Constraints<br/>(skipped if the fields are given directly)"]
     B --> U["user_profile, protein_target"]
     U --> C["recipe library<br/>library_ready recipes only"]
     C --> D["safety filter<br/>check_recipe per recipe"]
@@ -334,8 +337,7 @@ Logs: `time | level | module | message`, with `RedactSecretsFilter` masking anyt
 like a key.
 
 **What this costs.** LangSmith sees LLM and graph work only. HTTP routes and status codes are
-not traced, and a meal plan sent as structured fields (no free text) never calls the model, so it
-leaves no trace at all. That was the deliberate price of using one observability tool, not two.
+not traced, and a meal plan never calls the model, so it leaves no trace at all. That was the deliberate price of using one observability tool, not two.
 
 ---
 
@@ -351,8 +353,8 @@ model file on disk. The plans chosen were identical before and after.
 
 | Recipe | Gemini calls before | after |
 |---|---|---|
-| First draft clean | 3 | 2 |
-| Unsafe, fixed in one rewrite | 5 | 3 |
+| First draft clean | 3 | 1 |
+| Unsafe, fixed in one rewrite | 5 | 2 |
 
 What was slow, and what changed:
 
@@ -387,7 +389,7 @@ step's seconds. Compare the revision count too — if the writer misses targets 
 - JWT bearer tokens (the website keeps one in the browser), bcrypt hashes, 60-minute expiry.
 - Pydantic limits on every input (text length, days ≤ 14, budget > 0, list sizes …).
 - Free-tier quota is protected by the answer cache and by not retrying a 429. There is no per-user rate limit yet (a Phase 22 hardening item).
-- Prompt injection: raw user text only reaches the Requirement Agent, inside delimiters; downstream agents receive structured data; all LLM output is schema-validated; safety is deterministic anyway.
+- Prompt injection: the person's raw text never reaches Gemini. The Python Requirement Agent turns it into short, checked fields first; all LLM output is schema-validated; safety is deterministic anyway.
 - Disclaimers in every recipe/plan response and in the UI.
 - Minimal personal data: email, password hash, profile, inventory, feedback. Account deletion is not built yet (Phase 22).
 
@@ -422,7 +424,8 @@ Every file here is used; anything that stopped being used has been deleted.
 nutrichef-ai/
 ├── app/
 │   ├── api/          main.py (the app), routes.py, auth.py, users.py, schemas.py
-│   ├── agents/       prompts.py, agents.py (4 agents, 3 use Gemini), graph.py (LangGraph workflow),
+│   ├── agents/       prompts.py, agents.py (write, critique, revise), requirements.py (reads the request),
+│   │                 graph.py (LangGraph workflow),
 │   │                 schemas.py (the LLM output contract), rag.py (ChromaDB search)
 │   ├── core/         config.py, logging.py, llm.py, security.py, tracing.py
 │   ├── data/         usda.py, recipenlg.py, reference.py, recipes.py, features.py
@@ -468,7 +471,7 @@ recipenlg ────┴─> foods -> recipes -> nutrition -> tags -> index
 | 6 | Bearer JWT | Cookies (reference repo) | One token the browser sends on each call; no session store, no CSRF handling |
 | 7 | EC2 + compose, GHCR | ECS Fargate + ECR | Free-tier budget; ECS remains an upgrade path |
 | 8 | Synthetic interactions, clearly labeled | No ML until real users | Enables a genuine, evaluated model now |
-| 9 | Critic in Python; saved answers + temperature 0 | LLM critic; no cache | Same request, same result; one fewer Gemini call per rewrite |
+| 9 | Requirement Agent and critic in Python; saved answers + temperature 0 for the rest | LLM for all four; a local model | Two agents truly deterministic, two repeatable; fewer Gemini calls; raw text never reaches the LLM |
 
 ---
 

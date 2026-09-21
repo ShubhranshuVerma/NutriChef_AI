@@ -75,7 +75,6 @@ def generate_plan(body: schemas.PlanRequest, user=Depends(current_user)):
     needs_data()
     constraints = body.constraints()
     if body.request:
-        needs_llm()
         constraints = planner.constraints_from_text(body.request)
 
     saved = saved_profile(user)

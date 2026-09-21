@@ -7,17 +7,16 @@
 4. work out the shopping list: what the plan needs minus what is already at home
 5. say whether the protein goal was met, and add the disclaimer
 
-Only step 0 - turning free text into constraints - uses the LLM, and only when
-the request is free text. Everything here is plain Python.
+Everything here is plain Python, including step 0 (free text -> constraints),
+so the same request always gives the same plan.
 """
 
 from functools import lru_cache
 
 import pandas as pd
 
-from app.agents.agents import extract_requirements
+from app.agents.requirements import extract_requirements
 from app.core.config import PROJECT_ROOT
-from app.core.llm import get_llm
 from app.ml.ranker import load_model, score_recipe
 from app.nutrition.calculator import load_tables
 from app.nutrition.checks import check_recipe, load_rules
@@ -60,8 +59,8 @@ def load_library(path=LIBRARY_PATH):
 # ---------- the request ----------
 
 def constraints_from_text(text):
-    """Free text -> the request dict the checks use. Needs a Gemini key."""
-    constraints = extract_requirements(text, get_llm())
+    """Free text -> the request dict the checks use. Plain Python, no LLM."""
+    constraints = extract_requirements(text)
     return {"diet": constraints.diet, "allergies": constraints.allergies,
             "exclude": constraints.exclude, "min_protein_g": constraints.min_protein_g,
             "max_kcal": constraints.max_kcal, "max_cook_minutes": constraints.max_cook_minutes}

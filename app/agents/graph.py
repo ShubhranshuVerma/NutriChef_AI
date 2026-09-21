@@ -10,6 +10,8 @@ import time
 
 from langgraph.graph import END, StateGraph
 
+from app.agents.requirements import extract_requirements
+
 from app.agents import agents
 from app.core.logging import get_logger
 from app.nutrition.calculator import calculate_recipe
@@ -73,7 +75,7 @@ def make_nodes(deps):
                                "seconds": round(time.perf_counter() - state["started"], 2)})
 
     def understand(state):
-        constraints = agents.extract_requirements(state["request_text"], llm)
+        constraints = extract_requirements(state["request_text"])
         state["constraints"] = agents.merge_with_profile(constraints, state.get("profile"))
         note(state, "understand", agents.describe_constraints(state["constraints"]))
         return state

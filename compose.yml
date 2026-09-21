@@ -11,9 +11,10 @@ services:
   nutrichef:
     build: .
     image: nutrichef-ai
-    # 127.0.0.1: only this computer can reach it. Deployment changes this.
+    # On your Mac: 127.0.0.1:8000, so only this computer can reach it.
+    # On the EC2 server, PUBLISH_PORT=80 in .env opens it to the internet on port 80.
     ports:
-      - "127.0.0.1:8000:8000"
+      - "${PUBLISH_PORT:-127.0.0.1:8000}:8000"
     # Your keys stay in .env on your disk; they are never copied into the image.
     env_file: .env
     environment:

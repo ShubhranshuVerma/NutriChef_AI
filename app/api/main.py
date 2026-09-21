@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api import auth, users
 from app.api.routes import VERSION, health_router, router
 from app.core.config import PROJECT_ROOT, get_settings
-from app.core.llm import QuotaExhausted
+from app.core.llm import GeminiUnavailable, QuotaExhausted
 from app.core.logging import configure_logging, get_logger
 from app.core.tracing import configure_tracing
 from app.database.session import create_tables
@@ -43,6 +43,12 @@ def create_app():
     async def out_of_quota(request: Request, error: QuotaExhausted):
         """A quota problem is ours to explain, not a mystery 500."""
         log.warning("gemini quota exhausted on %s", request.url.path)
+        return JSONResponse(status_code=503, content={"detail": str(error)})
+
+    @app.exception_handler(GeminiUnavailable)
+    async def gemini_busy(request: Request, error: GeminiUnavailable):
+        """Gemini too slow or overloaded: a clear 503, not a mystery 500."""
+        log.warning("gemini unavailable on %s: %s", request.url.path, error.__cause__)
         return JSONResponse(status_code=503, content={"detail": str(error)})
 
     @app.exception_handler(Exception)

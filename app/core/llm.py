@@ -23,8 +23,18 @@ BUSY = ("503", "UNAVAILABLE", "overloaded", "high demand", "INTERNAL", "deadline
 OUT_OF_QUOTA = ("429", "RESOURCE_EXHAUSTED", "exceeded your current quota")
 
 
+TIMED_OUT = ("timed out", "timeout", "ConnectError", "connection")
+
+
 class QuotaExhausted(RuntimeError):
     """The daily free-tier allowance is gone. Waiting a few seconds will not help."""
+
+
+class GeminiUnavailable(RuntimeError):
+    """Gemini is overloaded or too slow right now. Trying again later usually works."""
+
+
+BUSY_MESSAGE = "Gemini is busy right now and did not answer in time. Please try again in a minute."
 
 
 # Someone is watching a spinner while this waits. It was 15 s then 30 s - up to
@@ -51,8 +61,13 @@ def invoke_with_retry(llm, prompt, attempts=3, wait_seconds=RETRY_WAIT_SECONDS):
                     "The daily Gemini quota for this project and model is used up. "
                     "Wait for it to reset, or set a different GEMINI_MODEL in .env."
                 ) from error
-            if attempt == attempts or not any(word in message for word in BUSY):
+            # A timeout already cost a minute of waiting: say so now, do not wait again.
+            if any(word.lower() in f"{type(error).__name__} {message}".lower() for word in TIMED_OUT):
+                raise GeminiUnavailable(BUSY_MESSAGE) from error
+            if not any(word in message for word in BUSY):
                 raise
+            if attempt == attempts:
+                raise GeminiUnavailable(BUSY_MESSAGE) from error
             pause = wait_seconds * attempt
             log.warning("Gemini is busy (attempt %d of %d); waiting %ds", attempt, attempts, pause)
             time.sleep(pause)

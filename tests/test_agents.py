@@ -10,7 +10,8 @@ import pytest
 from app.agents import agents, graph, rag
 from app.agents.requirements import extract_requirements
 from app.agents.schemas import Constraints, RecipeDraft
-from app.core.llm import CachedLLM, FakeLLM, QuotaExhausted, answer_text, invoke_with_retry
+from app.core.llm import (CachedLLM, FakeLLM, GeminiUnavailable, QuotaExhausted, answer_text,
+                          invoke_with_retry)
 from app.nutrition.checks import load_rules
 from tests.helpers import (GOOD_RECIPE, LOW_PROTEIN, REQUEST, SOY_BUT_OTHERWISE_FINE,
                            TOFU_RECIPE, recipe_tables)
@@ -255,6 +256,34 @@ def test_a_busy_gemini_is_retried(monkeypatch):
             return reply
 
     assert invoke_with_retry(Flaky(), "prompt") == "the answer"
+
+
+def test_a_gemini_that_times_out_is_reported_at_once_not_retried():
+    """A timeout already cost a minute; waiting for two more would freeze the page."""
+    class ReadTimeout(Exception):
+        pass
+
+    class Slow:
+        calls = 0
+
+        def invoke(self, prompt):
+            Slow.calls += 1
+            raise ReadTimeout("The read operation timed out")
+
+    with pytest.raises(GeminiUnavailable):
+        invoke_with_retry(Slow(), "prompt")
+    assert Slow.calls == 1
+
+
+def test_a_gemini_still_busy_after_retries_says_so(monkeypatch):
+    monkeypatch.setattr("app.core.llm.time.sleep", lambda seconds: None)
+
+    class AlwaysBusy:
+        def invoke(self, prompt):
+            raise RuntimeError("503 UNAVAILABLE: high demand")
+
+    with pytest.raises(GeminiUnavailable):
+        invoke_with_retry(AlwaysBusy(), "prompt")
 
 
 def test_an_empty_daily_quota_is_not_retried():

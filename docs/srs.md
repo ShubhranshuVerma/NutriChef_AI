@@ -239,7 +239,7 @@ The endpoint list is in *Architecture (v2)*, section 10.
 | NFR-1 | A 7-day, 3-meal plan over the full library (~3,100 recipes) is built in under 1 second after the first request | Met — measured ≈ 24 ms, tracing on or off |
 | NFR-2 | A clean recipe costs 1 Gemini call; one rewrite costs 2 | Met |
 | NFR-3 | A repeated prompt is answered from the disk cache without calling Gemini | Met |
-| NFR-4 | Gemini "busy" (503) errors are retried up to 3 times with 4 s then 8 s waits | Met |
+| NFR-4 | Gemini "busy" (503) errors are retried up to 3 times with 4 s then 8 s waits; a timeout, or still busy after that, is a clear 503 ("Gemini is busy… try again in a minute"), not a 500 | Met |
 
 ### 5.2 Reliability and error handling
 
@@ -275,7 +275,7 @@ The endpoint list is in *Architecture (v2)*, section 10.
 
 | ID | Requirement | Status |
 |---|---|---|
-| NFR-19 | The test suite runs offline with no API key, using a fake LLM (103 tests; 3 need the real data) | Met |
+| NFR-19 | The test suite runs offline with no API key, using a fake LLM (106 tests; 3 need the real data) | Met |
 | NFR-20 | Business logic is in services and engines, not in routes or the website | Met |
 | NFR-21 | With a LangSmith key, every LLM call and every recipe-workflow step is traced; without one nothing is sent | Met |
 | NFR-22 | Runs in a Docker container and deploys to AWS EC2 through Jenkins | **Not yet** (Phases 18-20) |

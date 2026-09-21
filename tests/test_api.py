@@ -97,6 +97,18 @@ def test_a_used_up_quota_is_a_clear_503(client, ready, monkeypatch):
     assert "limit" in response.json()["detail"]
 
 
+def test_a_slow_gemini_is_a_clear_503_not_a_500(client, ready, monkeypatch):
+    from app.core.llm import BUSY_MESSAGE, GeminiUnavailable
+
+    def too_slow(*args, **kwargs):
+        raise GeminiUnavailable(BUSY_MESSAGE)
+
+    monkeypatch.setattr(routes.recipe_service, "generate_recipe", too_slow)
+    response = client.post("/api/v1/recipes/generate", json={"request": "a light dinner"})
+    assert response.status_code == 503
+    assert "busy" in response.json()["detail"]
+
+
 def test_our_errors_never_leak_to_the_caller(client, ready, monkeypatch):
     def explode(*args, **kwargs):
         raise RuntimeError("API key AIzaSecret leaked in this message")

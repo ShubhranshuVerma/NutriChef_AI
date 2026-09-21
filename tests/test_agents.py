@@ -275,6 +275,20 @@ def test_a_gemini_that_times_out_is_reported_at_once_not_retried():
     assert Slow.calls == 1
 
 
+def test_a_gemini_deadline_exceeded_is_reported_at_once_not_retried():
+    """Google gave up after its own time limit (504): same as our timeout."""
+    class Slow:
+        calls = 0
+
+        def invoke(self, prompt):
+            Slow.calls += 1
+            raise RuntimeError("504 DEADLINE_EXCEEDED. Deadline expired before operation could complete.")
+
+    with pytest.raises(GeminiUnavailable):
+        invoke_with_retry(Slow(), "prompt")
+    assert Slow.calls == 1
+
+
 def test_a_gemini_still_busy_after_retries_says_so(monkeypatch):
     monkeypatch.setattr("app.core.llm.time.sleep", lambda seconds: None)
 

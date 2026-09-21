@@ -19,11 +19,11 @@ log = get_logger(__name__)
 CACHE_DIR = PROJECT_ROOT / "data" / "processed" / "llm_cache"
 
 # Gemini's free tier fails in two very different ways.
-BUSY = ("503", "UNAVAILABLE", "overloaded", "high demand", "INTERNAL", "deadline")
+BUSY = ("503", "UNAVAILABLE", "overloaded", "high demand", "INTERNAL")
 OUT_OF_QUOTA = ("429", "RESOURCE_EXHAUSTED", "exceeded your current quota")
 
-
-TIMED_OUT = ("timed out", "timeout", "ConnectError", "connection")
+# Took too long: on our side (timeout) or on Google's side (504 DEADLINE_EXCEEDED).
+TIMED_OUT = ("timed out", "timeout", "ConnectError", "connection", "504", "deadline")
 
 
 class QuotaExhausted(RuntimeError):

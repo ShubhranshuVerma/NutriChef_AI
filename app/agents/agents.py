@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from app.agents import prompts
 from app.core.llm import answer_text, invoke_with_retry
 from app.core.logging import get_logger
+from app.nutrition.checks import contains_word, ingredients_matching
 from app.agents.schemas import Constraints, Critique, RecipeDraft
 
 log = get_logger(__name__)
@@ -69,11 +70,11 @@ def as_data(text):
     return str(text)[:1000].replace("<<<", "").replace(">>>", "").strip()
 
 
-def generate_recipe(constraints, context, llm, request_text=""):
+def generate_recipe(constraints, context, llm, request_text="", rules=None):
     """The request + the rules read from it + similar recipes -> a new recipe."""
     prompt = prompts.RECIPE_PROMPT.format(
         request=as_data(request_text) or "(no description)",
-        constraints=describe_constraints(constraints),
+        constraints=describe_constraints(constraints, rules),
         context=context or "(nothing found)",
     )
     return ask(llm, prompt, RecipeDraft)
@@ -97,14 +98,79 @@ FIXES = [
 ]
 
 
-def critique_recipe(checks):
+# Safe swaps for each allergen: "use X instead of Y". A swap is only suggested if X
+# is safe for this person too (no tofu for someone who is also allergic to soy).
+SWAPS = {
+    "milk": [("chickpeas", "paneer"), ("tofu", "paneer"), ("oil", "ghee or butter"),
+             ("coconut milk", "milk, cream or curd")],
+    "egg": [("besan (gram flour) batter", "egg"), ("tofu", "egg"), ("paneer", "egg")],
+    "soy": [("paneer", "tofu or soya chunks"), ("chickpeas", "tofu or soya chunks"),
+            ("salt and lemon", "soy sauce")],
+    "wheat_gluten": [("rice", "wheat, bread or pasta"), ("jowar or ragi flour", "atta or maida"),
+                     ("besan (gram flour)", "atta or maida")],
+    "peanut": [("roasted sunflower seeds", "peanuts"), ("sunflower oil", "peanut oil")],
+    "tree_nut": [("roasted pumpkin or sunflower seeds", "nuts"), ("melon seeds", "cashew paste")],
+    "sesame": [("sunflower seeds", "sesame"), ("sunflower oil", "sesame oil")],
+    "fish": [("paneer", "fish"), ("chickpeas", "fish"), ("chicken", "fish")],
+    "crustacean": [("paneer", "prawns"), ("chickpeas", "prawns"), ("chicken", "prawns")],
+    "sulphite": [("fresh lemon juice", "wine or vinegar")],
+}
+
+
+def safe_swaps(code, constraints, rules):
+    """The swaps for an allergen that do not break any of the person's other rules."""
+    safe = []
+    for use, old in SWAPS.get(code, []):
+        recipe = {"ingredients": [{"name": use}]}
+        clashes = [allergy for allergy in constraints.allergies
+                   if ingredients_matching(recipe, rules["allergens"].get(allergy, []), rules,
+                                           rules["exceptions"].get(("allergen", allergy), []))]
+        clashes += [word for word in constraints.exclude if contains_word(use, word.lower())]
+        for group in rules["diets"].get(constraints.diet, []) if constraints.diet else []:
+            if ingredients_matching(recipe, rules["groups"].get(group, []), rules,
+                                    rules["exceptions"].get(("group", group), [])):
+                clashes.append(group)
+        if not clashes:
+            safe.append(f"{use} instead of {old}")
+    return safe
+
+
+def culprits(problem, recipe, rules):
+    """Which ingredient lines caused this problem, and the allergen code if it is one."""
+    if problem.startswith("contains excluded ingredient: "):
+        word = problem.split(": ", 1)[1]
+        return ingredients_matching(recipe, [word], rules), None
+    if problem.startswith("contains "):
+        code = problem[len("contains "):]
+        exceptions = rules["exceptions"].get(("allergen", code), [])
+        return ingredients_matching(recipe, rules["allergens"].get(code, []), rules, exceptions), code
+    if problem.startswith("not ") and ": contains " in problem:
+        found = []
+        for group in problem.split(": contains ", 1)[1].split(", "):
+            exceptions = rules["exceptions"].get(("group", group), [])
+            found += ingredients_matching(recipe, rules["groups"].get(group, []), rules, exceptions)
+        return found, None
+    return [], None
+
+
+def critique_recipe(checks, recipe=None, rules=None, constraints=None):
     """What is wrong and how to fix it, built from our own check results.
 
-    No LLM: the same check results always give the same critique.
+    For a broken rule it names the exact ingredients to replace ("200 g paneer") and
+    safe swaps, so the rewrite knows what to change. No LLM: the same check results
+    always give the same critique.
     """
     problems = checks["failures"] + checks["warnings"]
     suggestions = []
     for problem in problems:
+        lines, code = culprits(problem, recipe, rules) if recipe and rules else ([], None)
+        if lines:
+            advice = f"{problem}: replace {', '.join(lines)}."
+            swaps = safe_swaps(code, constraints, rules) if code and constraints else []
+            if swaps:
+                advice += " Safe swaps: " + "; ".join(swaps) + "."
+            suggestions.append(advice)
+            continue
         for start, fix in FIXES:
             if problem.startswith(start):
                 suggestions.append(f"{problem}: {fix}")
@@ -114,10 +180,11 @@ def critique_recipe(checks):
 
 # ---------- 4. revision ----------
 
-def revise_recipe(constraints, recipe, critique, llm, request_text=""):
+def revise_recipe(constraints, recipe, critique, llm, request_text="", rules=None, attempt=1):
     prompt = prompts.REVISION_PROMPT.format(
+        attempt=attempt,
         request=as_data(request_text) or "(no description)",
-        constraints=describe_constraints(constraints),
+        constraints=describe_constraints(constraints, rules),
         recipe=describe_recipe(recipe),
         problems="\n".join(f"- {p}" for p in critique.problems) or "- none",
         suggestions="\n".join(f"- {s}" for s in critique.suggestions) or "- none",
@@ -141,14 +208,22 @@ LABELS = {
 }
 
 
-def describe_constraints(constraints):
-    """Constraints as short labelled lines, so prompts stay readable and unambiguous."""
+def describe_constraints(constraints, rules=None):
+    """Constraints as short labelled lines, so prompts stay readable and unambiguous.
+
+    With `rules`, each allergy also lists the ingredients that count as it: Gemini
+    does not always know that paneer, ghee and curd are all milk.
+    """
     lines = []
     for key, value in constraints.model_dump().items():
         if value in (None, [], ""):
             continue
         text = ", ".join(map(str, value)) if isinstance(value, list) else value
         lines.append(f"- {LABELS.get(key, key)}: {text}")
+        if key == "allergies" and rules:
+            for code in value:
+                words = ", ".join(rules["allergens"].get(code, []))
+                lines.append(f"  - these all count as {code}, never use any of them: {words}")
     return "\n".join(lines) or "- no special requirements"
 
 

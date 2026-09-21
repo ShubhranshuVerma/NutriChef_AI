@@ -80,6 +80,17 @@ def find_matches(texts, keyword_map, rules, scope):
     return sorted(found)
 
 
+def ingredients_matching(recipe, keywords, rules, exceptions=()):
+    """The ingredient lines that contain any of `keywords`, e.g. "200 g paneer" for milk."""
+    ingredients = recipe.get("ingredients", [])
+    found = []
+    for item, text in zip(ingredients, ingredient_texts(ingredients, rules)):
+        cleaned = _clean(text, exceptions)
+        if any(contains_word(cleaned, keyword.lower()) for keyword in keywords):
+            found.append(item.get("raw") or item.get("name", ""))
+    return found
+
+
 def diets_allowed(food_groups, rules):
     """Which diets a recipe with these food groups is suitable for."""
     return sorted(

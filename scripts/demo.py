@@ -147,10 +147,15 @@ def main():
 
     configure_logging()
     configure_tracing()
-    if args.scenario == "recipe":
-        show_recipe(args)
-    else:
-        show_plan(args)
+    from app.core.llm import QuotaExhausted
+
+    try:
+        if args.scenario == "recipe":
+            show_recipe(args)
+        else:
+            show_plan(args)
+    except QuotaExhausted as error:
+        raise SystemExit(f"\n{error}")
 
 
 if __name__ == "__main__":

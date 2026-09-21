@@ -16,6 +16,7 @@ def clean_settings(monkeypatch):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setitem(Settings.model_config, "env_file", None)
     monkeypatch.setenv("ENVIRONMENT", "test")
+    monkeypatch.setenv("LANGSMITH_TRACING", "false")   # never send test runs to LangSmith
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()

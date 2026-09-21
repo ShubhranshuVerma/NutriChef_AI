@@ -140,6 +140,39 @@ def test_breaking_a_hard_rule_always_goes_to_the_critic():
     assert state["status"] == "ok"
 
 
+def test_the_rewrite_is_told_exactly_which_ingredient_to_replace():
+    state, llm = run([TOFU_RECIPE, GOOD_RECIPE])
+    rewrite = llm.prompts[1]
+    assert "contains soy: replace 200 g tofu" in rewrite
+    assert "paneer instead of tofu" in rewrite
+    assert "This is attempt 1" in rewrite
+
+
+def test_swaps_never_break_another_allergy():
+    rules = load_rules()
+    both = Constraints(diet="vegetarian", allergies=["milk", "soy"])
+    swaps = agents.safe_swaps("milk", both, rules)
+    assert "chickpeas instead of paneer" in swaps
+    assert not any(s.startswith("tofu") for s in swaps)               # tofu is soy
+    assert "coconut milk instead of milk, cream or curd" in swaps     # coconut milk is not dairy
+
+
+def test_every_prompt_lists_what_counts_as_each_allergy():
+    state, llm = run([GOOD_RECIPE] * 3, profile={"allergies": ["milk"]})
+    assert "count as milk" in llm.prompts[0] and "paneer" in llm.prompts[0]
+
+
+def test_a_second_rewrite_is_a_new_question_not_a_saved_answer(tmp_path):
+    """With saved answers, an identical rewrite prompt would hand back the same failed recipe."""
+    fake = FakeLLM([TOFU_RECIPE, TOFU_RECIPE, GOOD_RECIPE])
+    deps = {"llm": CachedLLM(fake, "test-model", tmp_path), "tables": recipe_tables(),
+            "rules": load_rules(), "search_recipes": None}
+    state = graph.run(REQUEST, deps)
+    assert state["revisions"] == 2
+    assert state["status"] == "ok"                          # the second rewrite was really asked
+    assert len(fake.prompts) == 3
+
+
 def test_a_draft_short_on_protein_is_rewritten_too():
     state, _ = run([LOW_PROTEIN, GOOD_RECIPE])
     assert "critique" in [s["step"] for s in state["trace"]]

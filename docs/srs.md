@@ -181,7 +181,7 @@ The endpoint list is in *Architecture (v2)*, section 10.
 | FR-18 | Nutrition and cost are computed by the calculator from the food tables, never taken from the LLM | Met |
 | FR-19 | Every draft is checked by `check_recipe` (section 4.4) | Met |
 | FR-20 | A draft that passes with no warnings is returned without calling the critic | Met |
-| FR-21 | A draft with a failure or warning goes to the critic (plain Python), which lists each problem with a fixed fix; the Revision Agent rewrites it and it is checked again | Met |
+| FR-21 | A draft with a failure or warning goes to the critic (plain Python), which lists each problem, the exact ingredients that caused it and safe swaps that break no other rule; the Revision Agent replaces them and the recipe is checked again | Met |
 | FR-22 | At most 2 rewrites; the result is `ok` only if the final checks passed, otherwise `failed` with the reasons | Met |
 | FR-23 | The response includes the recipe, nutrition, check results, sources, the steps taken and the disclaimer | Met |
 
@@ -275,7 +275,7 @@ The endpoint list is in *Architecture (v2)*, section 10.
 
 | ID | Requirement | Status |
 |---|---|---|
-| NFR-19 | The test suite runs offline with no API key, using a fake LLM (99 tests; 3 need the real data) | Met |
+| NFR-19 | The test suite runs offline with no API key, using a fake LLM (103 tests; 3 need the real data) | Met |
 | NFR-20 | Business logic is in services and engines, not in routes or the website | Met |
 | NFR-21 | With a LangSmith key, every LLM call and every recipe-workflow step is traced; without one nothing is sent | Met |
 | NFR-22 | Runs in a Docker container and deploys to AWS EC2 through Jenkins | **Not yet** (Phases 18-20) |
@@ -299,6 +299,7 @@ All tests are in `tests/`. Run with `python -m pytest -q`.
 | FR-18 | `test_agents.py`: `test_nutrition_comes_from_the_calculator_not_the_llm`; `test_nutrition.py` (14 tests) |
 | FR-20 – FR-22, NFR-2 | `test_agents.py`: `test_a_clean_first_draft_takes_one_gemini_call`, `test_an_unsafe_draft_is_rewritten_until_it_passes`, `test_breaking_a_hard_rule_always_goes_to_the_critic`, `test_a_draft_short_on_protein_is_rewritten_too`, `test_it_gives_up_after_two_rewrites_and_says_so` |
 | FR-29 | `test_api.py`: `test_a_plan_in_plain_words_needs_no_gemini_key` |
+| FR-21 | `test_agents.py`: `test_the_rewrite_is_told_exactly_which_ingredient_to_replace`, `test_swaps_never_break_another_allergy`, `test_every_prompt_lists_what_counts_as_each_allergy`, `test_a_second_rewrite_is_a_new_question_not_a_saved_answer` |
 | FR-21, NFR-23 | `test_agents.py`: `test_the_same_words_always_give_the_same_constraints`, `test_the_critic_gives_the_same_answer_every_time`, `test_the_same_request_always_gives_the_same_recipe`, `test_gemini_is_asked_for_its_most_likely_answer` |
 | FR-24 – FR-28 | `test_checks.py` (12 tests) |
 | FR-30 – FR-36 | `test_planner.py` (12 tests) |

@@ -100,7 +100,7 @@ def make_nodes(deps):
 
     def write(state):
         draft = agents.generate_recipe(state["constraints"], state["context"], llm,
-                                       state["request_text"])
+                                       state["request_text"], deps["rules"])
         state["draft"] = draft
         note(state, "write", draft.title)
         return state
@@ -112,14 +112,18 @@ def make_nodes(deps):
         return state
 
     def critique(state):
-        state["critique"] = agents.critique_recipe(state["checks"])
+        state["critique"] = agents.critique_recipe(state["checks"], state["recipe"],
+                                                   deps["rules"], state["constraints"])
         note(state, "critique", "; ".join(state["critique"].problems) or "no problems")
         return state
 
     def revise(state):
         state["revisions"] += 1
+        # The attempt number is part of the prompt, so a second rewrite is a new
+        # question: a saved answer can never hand back the same failed recipe twice.
         state["draft"] = agents.revise_recipe(state["constraints"], state["recipe"],
-                                              state["critique"], llm, state["request_text"])
+                                              state["critique"], llm, state["request_text"],
+                                              deps["rules"], attempt=state["revisions"])
         note(state, f"revise {state['revisions']}", state["draft"].title)
         return state
 

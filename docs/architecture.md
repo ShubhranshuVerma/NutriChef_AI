@@ -69,7 +69,7 @@ needed. Everything that must be *correct* is deterministic and lives elsewhere.
 |---|---|---|
 | Requirement (Python, no LLM) | free text → `Constraints`: words from fixed lists (diets, allergens, courses) and numbers next to units ("600 calories", "25 g protein") | `app/agents/requirements.py` |
 | Recipe | the person's words (fenced as data) + the rules read from them + RAG context → one `RecipeDraft`, quantities in grams | `generate_recipe` |
-| Critic (Python, no LLM) | our check results → `Critique`: each failure and warning, with a fixed piece of advice | `critique_recipe` |
+| Critic (Python, no LLM) | our check results → `Critique`: each failure and warning, the exact ingredient lines that caused it, and safe swaps | `critique_recipe` |
 | Revision | recipe + critique → a fixed `RecipeDraft` | `revise_recipe` |
 
 Every answer is cached on disk by `CachedLLM` (`app/core/llm.py`), keyed by the prompt **and**
@@ -127,9 +127,22 @@ flowchart TD
 ```
 
 A draft that passes every check with no warnings is finished. Anything else goes to the critic,
-which is plain Python: it lists every failure and warning from `check_recipe` with a fixed piece
-of advice (for "contains soy": remove it and use a safe substitute). The Revision Agent rewrites
-the recipe from that list and it is checked again, at most twice. The critic used to be a Gemini
+which is plain Python: it lists every failure and warning from `check_recipe`, names the exact
+ingredient lines that caused each one, and suggests safe swaps (for "contains soy": *replace 200 g
+tofu; safe swaps: paneer or chickpeas instead of tofu*). A swap is only offered if it breaks none
+of the person's other rules, so someone allergic to milk and soy is never told to use tofu. The
+Revision Agent rewrites the recipe from that list and it is checked again, at most twice.
+
+Three more things make sure an allergen is really replaced, not just found:
+
+1. **Every prompt spells out each allergy.** "Milk" alone is not enough; the prompt lists the
+   24 ingredients that count as milk (paneer, ghee, curd, khoa …), from the same table the
+   checks use.
+2. **Safety beats the dish.** If they ask for "paneer tikka" with a milk allergy, Gemini is told
+   to make a version without paneer, not to keep the dish exactly as named.
+3. **Each rewrite is a new question.** The attempt number is in the rewrite prompt. Without it,
+   a second rewrite of the same failed recipe would be the same prompt, and the saved-answer
+   cache would hand back the same failed recipe. The critic used to be a Gemini
 call; it only ever restated our own check results, so making it Python made the loop
 deterministic and saved one call per rewrite.
 

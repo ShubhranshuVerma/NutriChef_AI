@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NutriChef — meals that fit your life</title>
+<meta name="description" content="Tell us how you eat. We write the recipe and check every number.">
+<meta name="theme-color" content="#14452F">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://images.pexels.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥘</text></svg>">
+</head>
+<body>
+
+<!-- ======================= nav ======================= -->
+<header class="nav" id="nav">
+  <a class="brand" href="#" data-go="home">
+    <svg width="34" height="34" viewBox="0 0 32 32" aria-hidden="true">
+      <circle cx="16" cy="16" r="15" fill="currentColor"/>
+      <path d="M5.5 16.5h21a10.5 10.5 0 0 1-21 0Z" fill="#FBF7F0"/>
+      <circle cx="11.5" cy="11" r="3.1" fill="#FBF7F0" opacity=".9"/>
+      <circle cx="20" cy="10" r="2.1" fill="#FBF7F0" opacity=".6"/>
+      <rect x="4" y="21.4" width="24" height="2.2" rx="1.1" fill="#FBF7F0" opacity=".75"/>
+    </svg>
+    <span>NutriChef</span>
+  </a>
+
+  <nav class="nav-links" id="navLinks">
+    <a href="#" data-go="recipe">Recipes</a>
+    <a href="#" data-go="plan">Meal plans</a>
+    <a href="#" data-go="kitchen">My kitchen</a>
+  </nav>
+
+  <div class="nav-right">
+    <span class="who" id="who" hidden></span>
+    <button class="btn ghost" id="signInBtn">Sign in</button>
+    <button class="btn ghost" id="signOutBtn" hidden>Sign out</button>
+    <button class="btn primary" data-go="recipe">Get a recipe</button>
+    <button class="hamburger" id="hamburger" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<main>
+
+<!-- ======================= home ======================= -->
+<section class="view" id="view-home">
+
+  <!-- hero -->
+  <div class="hero">
+    <div class="hero-copy">
+      <span class="eyebrow">Constraint-aware cooking</span>
+      <h1>Dinner that respects<br><em>every</em> rule you have.</h1>
+      <p class="lede">Vegetarian, allergic to soy, ₹1,500 for the week, 25&nbsp;g of protein a
+        meal — say it in your own words. We write the recipe, then check every gram against a
+        food database before you see it.</p>
+      <div class="hero-actions">
+        <button class="btn primary lg" data-go="recipe">Create a recipe</button>
+        <button class="btn outline lg" data-go="plan">Plan my week</button>
+      </div>
+      <div class="hero-proof">
+        <div><strong id="statRecipes">3,100+</strong><span>recipes checked</span></div>
+        <div><strong>10</strong><span>allergens tracked</span></div>
+        <div><strong>USDA</strong><span>nutrition data</span></div>
+      </div>
+    </div>
+
+    <div class="hero-art">
+      <figure class="ph hero-shot" data-photo="thali" data-w="1100">
+        <figcaption>Vegetarian thali · 612 kcal · 29 g protein</figcaption>
+      </figure>
+      <figure class="ph hero-inset" data-photo="paneer" data-w="500"></figure>
+      <div class="float-card fc1"><span class="dot ok"></span> No soy · No whey</div>
+      <div class="float-card fc2"><strong>498</strong> kcal · <strong>32 g</strong> protein</div>
+      <div class="float-card fc3"><span class="dot warn"></span> Contains milk</div>
+    </div>
+  </div>
+
+  <!-- running strip of claims -->
+  <div class="ticker" aria-hidden="true">
+    <div class="ticker-run">
+      <span>Nutrition from USDA FoodData Central</span><i>◆</i>
+      <span>Every gram calculated, never guessed</span><i>◆</i>
+      <span>10 allergens matched whole-word</span><i>◆</i>
+      <span>Your budget in rupees, not vibes</span><i>◆</i>
+      <span>Uses what is already in your kitchen</span><i>◆</i>
+      <span>Nutrition from USDA FoodData Central</span><i>◆</i>
+      <span>Every gram calculated, never guessed</span><i>◆</i>
+      <span>10 allergens matched whole-word</span><i>◆</i>
+      <span>Your budget in rupees, not vibes</span><i>◆</i>
+      <span>Uses what is already in your kitchen</span><i>◆</i>
+    </div>
+  </div>
+
+  <!-- how it works -->
+  <div class="band">
+    <div class="band-head reveal">
+      <span class="eyebrow">The idea</span>
+      <h2 class="section-title">How it works</h2>
+      <p class="body center">Three steps, and the third one is the one nobody else does.</p>
+    </div>
+
+    <div class="steps">
+      <article class="step reveal">
+        <figure class="ph" data-photo="cooking" data-w="640"></figure>
+        <div class="step-text">
+          <span class="step-n">1</span>
+          <h3>Say it plainly</h3>
+          <p>“High-protein dinner under 600 calories, I’m vegetarian and allergic to soy.”
+            No forms to fight, no dropdown archaeology.</p>
+        </div>
+      </article>
+
+      <article class="step reveal">
+        <figure class="ph" data-photo="paneer" data-w="640"></figure>
+        <div class="step-text">
+          <span class="step-n">2</span>
+          <h3>We cook it up</h3>
+          <p>A full recipe is written with every quantity in grams, leaning on what you
+            already have at home wherever it makes sense.</p>
+        </div>
+      </article>
+
+      <article class="step reveal">
+        <figure class="ph" data-photo="market" data-w="640"></figure>
+        <div class="step-text">
+          <span class="step-n">3</span>
+          <h3>Then we check it</h3>
+          <p>Calories, protein, cost and every allergen are <em>calculated</em> — not guessed.
+            If it breaks one of your rules, you are told before you cook.</p>
+        </div>
+      </article>
+    </div>
+  </div>
+
+  <!-- gallery -->
+  <div class="band gallery-band">
+    <div class="band-head reveal">
+      <span class="eyebrow">Tonight’s options</span>
+      <h2 class="section-title">Food first, numbers second</h2>
+      <p class="body center">Every plate below passed the same checks yours will.</p>
+    </div>
+    <div class="gallery" id="gallery"></div>
+  </div>
+
+  <!-- allergies -->
+  <div class="band alt">
+    <div class="split reveal">
+      <div>
+        <span class="eyebrow">Safety</span>
+        <h2 class="section-title left">Your allergies stick.</h2>
+        <p class="body">Save them once. From then on they are added to every request you
+          make — a recipe can never quietly drop one, no matter how you word it.</p>
+        <ul class="ticks">
+          <li>Whole-word matching, so “eggplant” never counts as “egg”</li>
+          <li>Knows that coconut milk is not milk</li>
+          <li>An ingredient we cannot identify blocks the recipe</li>
+        </ul>
+        <button class="btn primary" data-go="kitchen">Set up my kitchen</button>
+      </div>
+      <div class="allergen-side">
+        <figure class="ph" data-photo="spices" data-w="720"></figure>
+        <div class="allergen-grid" id="allergenGrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- closing call to action -->
+  <div class="cta reveal">
+    <figure class="ph cta-bg" data-photo="bowl" data-w="1400"></figure>
+    <div class="cta-inner">
+      <h2>A whole week, inside your budget.</h2>
+      <p>Seven days of meals that fit your diet, your allergies and ₹1,500 — with a shopping
+        list that skips whatever is already in your fridge.</p>
+      <div class="hero-actions center">
+        <button class="btn primary lg" data-go="plan">Plan my week</button>
+        <button class="btn quiet lg" data-go="recipe">Just one recipe</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= recipe ======================= -->
+<section class="view" id="view-recipe" hidden>
+  <div class="page-head">
+    <figure class="ph page-bg" data-photo="paneer" data-w="1400"></figure>
+    <div class="page-head-inner">
+      <span class="eyebrow light">One meal</span>
+      <h1>What are you in the mood for?</h1>
+      <p class="lede">Describe the meal. We will write it and check the numbers.</p>
+    </div>
+  </div>
+
+  <div class="composer">
+    <textarea id="requestBox" rows="3" placeholder="A high-protein vegetarian dinner under 600 calories…"></textarea>
+    <div class="chips" id="quickChips"></div>
+    <div class="composer-row">
+      <details class="filters">
+        <summary>Diet &amp; allergies</summary>
+        <div class="filter-body">
+          <label>I eat
+            <select id="dietSelect"></select>
+          </label>
+          <label>Allergic to
+            <div class="pillbox" id="allergyPills"></div>
+          </label>
+          <label>Avoid
+            <input id="excludeInput" type="text" placeholder="whey, mushroom">
+          </label>
+        </div>
+      </details>
+      <button class="btn primary lg" id="generateBtn">Create my recipe</button>
+    </div>
+  </div>
+
+  <div id="recipeResult"></div>
+</section>
+
+<!-- ======================= plan ======================= -->
+<section class="view" id="view-plan" hidden>
+  <div class="page-head">
+    <figure class="ph page-bg" data-photo="boxes" data-w="1400"></figure>
+    <div class="page-head-inner">
+      <span class="eyebrow light">Seven days</span>
+      <h1>A week that fits your budget</h1>
+      <p class="lede">Only meals that pass your rules, using up what is already in your kitchen.</p>
+    </div>
+  </div>
+
+  <div class="panel controls">
+    <label>Days <input id="planDays" type="number" min="1" max="14" value="7"></label>
+    <label>Budget (₹) <input id="planBudget" type="number" min="100" step="100" value="1500"></label>
+    <label>I eat <select id="planDiet"></select></label>
+    <label>Protein a meal
+      <span class="range-wrap">
+        <input id="planProtein" type="range" min="0" max="60" value="25">
+        <output id="planProteinOut">25 g</output>
+      </span>
+    </label>
+    <label class="wide">Meals each day <div class="pillbox" id="slotPills"></div></label>
+    <label class="wide">Allergic to <div class="pillbox" id="planAllergyPills"></div></label>
+    <button class="btn primary lg" id="planBtn">Plan my week</button>
+  </div>
+
+  <div id="planResult"></div>
+</section>
+
+<!-- ======================= kitchen ======================= -->
+<section class="view" id="view-kitchen" hidden>
+  <div class="page-head">
+    <figure class="ph page-bg" data-photo="market" data-w="1400"></figure>
+    <div class="page-head-inner">
+      <span class="eyebrow light">Saved once, used everywhere</span>
+      <h1>My kitchen</h1>
+      <p class="lede">Set it once. Everything you ask for respects it.</p>
+    </div>
+  </div>
+  <div id="kitchenBody"></div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="foot-top">
+    <div class="foot-brand">
+      <span class="brand foot-mark">
+        <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
+          <circle cx="16" cy="16" r="15" fill="currentColor"/>
+          <path d="M5.5 16.5h21a10.5 10.5 0 0 1-21 0Z" fill="#14452F"/>
+          <circle cx="11.5" cy="11" r="3.1" fill="#14452F" opacity=".9"/>
+        </svg>
+        <span>NutriChef</span>
+      </span>
+      <p>Meals that respect every rule you have — written by a model, checked by Python.</p>
+    </div>
+    <nav class="foot-links">
+      <a href="#" data-go="recipe">Create a recipe</a>
+      <a href="#" data-go="plan">Plan a week</a>
+      <a href="#" data-go="kitchen">My kitchen</a>
+    </nav>
+  </div>
+  <p class="foot-note">Nutrition and prices are estimates. NutriChef is a general wellness tool —
+    not medical advice — and it cannot guarantee allergy safety. Always check ingredient labels
+    and cross-contamination risks yourself.</p>
+  <p class="tiny">Nutrition from USDA FoodData Central · Photography from Pexels ·
+    Recipes checked in Python, not guessed</p>
+</footer>
+
+<!-- ======================= auth ======================= -->
+<div class="modal" id="authModal" hidden>
+  <div class="modal-card">
+    <button class="modal-x" id="authClose" aria-label="Close">&times;</button>
+    <h2 id="authTitle">Welcome back</h2>
+    <p class="muted" id="authSub">Sign in so your allergies follow you everywhere.</p>
+    <form id="authForm">
+      <label>Email <input id="authEmail" type="email" required placeholder="you@example.com"></label>
+      <label>Password <input id="authPassword" type="password" required minlength="8"
+        placeholder="At least 8 characters"></label>
+      <p class="form-error" id="authError" hidden></p>
+      <button class="btn primary lg full" id="authSubmit" type="submit">Sign in</button>
+    </form>
+    <p class="muted center">
+      <span id="authSwitchText">New here?</span>
+      <a href="#" id="authSwitch">Create an account</a>
+    </p>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

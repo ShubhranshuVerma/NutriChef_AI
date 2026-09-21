@@ -49,29 +49,29 @@ pytest
 pytest --cov=app --cov-report=term-missing  # coverage, and which lines are missing
 ```
 
-The suite is 334 tests and covers 95% of `app/`. What is left uncovered needs
-either the big data files or a live Gemini key — the download helpers, the index
-loaders, and the two functions that call the model.
+About 90 tests, one file per part of the project, in `tests/`. Gemini is replaced with a fake
+that returns scripted replies, so the suite is free, offline and takes a few seconds. Three
+nutrition tests check against your real USDA table and are skipped until it is built.
 
 ## Project layout
 
 ```text
 app/        backend package (api, agents, core, schemas, services, rag, ml, nutrition, validation, database)
 web/        the website (index.html, styles.css, app.js)
-ml/         training & evaluation scripts, artifacts
+ml/         artifacts/ - the trained ranking model (git-ignored)
 data/       reference/ + knowledge_base/ (committed); raw/, processed/, interactions/ (git-ignored)
-scripts/    one-off utilities (setup checks, data download, seeding)
-tests/      unit, integration, api, web, agents, rag, ml
+scripts/    build_data, train_ranker, demo, check
+tests/      one file per part: checks, nutrition, data, planner, agents, api, auth, ml
 docs/       architecture, data sources
 ```
 
 ## Try it
 
 ```bash
-python -m scripts.demo_recipe        # Scenario 1: one request -> checked recipe (uses your Gemini key)
-python -m scripts.demo_meal_plan     # Scenario 2: 7-day plan in a budget + shopping list
-python -m scripts.demo_meal_plan --no-llm --days 3 --budget 800
-python -m scripts.demo_meal_plan --slots breakfast,lunch,dinner,snack   # fuller days
+python -m scripts.demo recipe        # Scenario 1: one request -> checked recipe (uses your Gemini key)
+python -m scripts.demo plan          # Scenario 2: 7-day plan in a budget + shopping list
+python -m scripts.demo plan --no-llm --days 3 --budget 800
+python -m scripts.demo plan --slots breakfast,lunch,dinner,snack   # fuller days
 ```
 
 LLM answers are cached on disk (`data/processed/llm_cache`), so repeating a request costs no
@@ -87,8 +87,8 @@ in `.env` is the default here (the model's own default is `medium`). To see the 
 your key — each run uses 2-4 requests of the daily quota:
 
 ```bash
-python -m scripts.demo_recipe --no-cache --thinking medium
-python -m scripts.demo_recipe --no-cache --thinking low
+python -m scripts.demo recipe --no-cache --thinking medium
+python -m scripts.demo recipe --no-cache --thinking low
 ```
 
 ## Watching it think (LangSmith)
@@ -102,12 +102,11 @@ LANGSMITH_PROJECT=nutrichef-ai
 ```
 
 Then open [smith.langchain.com](https://smith.langchain.com) and pick the project. A recipe
-request reads **understand → search → write → nutrition.calculate → checks.safety → finish**,
-with **critique → revise** in between only when Python found something to fix, and the time
-each step took. A meal plan shows **checks.safety_filter** (3,133 in, how many safe) and
-**ranker.score_all** (the top five) as single steps. The nutrition and safety steps are traced on
-purpose: the model proposes, Python decides, and a trace showing only the model would be
-showing the half that decides nothing.
+request reads **understand → search → write → check → finish**, with **critique → revise** in
+between only when Python found something to fix, and the time each step took. The `check` step
+is where Python calculates the nutrition and decides whether the recipe is safe - you can open
+it and see the numbers and the verdict. LangChain and LangGraph report all of this themselves;
+nothing in the code has to mention tracing beyond switching it on.
 
 No key means no tracing, no network calls and no change in behaviour. `python -m scripts.check`
 says which it is.
@@ -146,15 +145,9 @@ and your saved inventory is used when the request does not send one.
 ## Data
 
 ```bash
-python -m scripts.download_usda       # USDA SR Legacy -> data/processed/usda_foods.csv
-python -m scripts.sample_recipenlg     # RecipeNLG -> data/processed/recipenlg_sample.csv
-python -m scripts.build_ingredient_foods  # catalog ingredients -> USDA nutrients
-python -m scripts.process_recipes      # clean recipes -> data/processed/recipes.jsonl
-python -m scripts.compute_nutrition    # nutrition + cost -> data/processed/recipes_nutrition.jsonl
-python -m scripts.tag_recipes          # allergen/diet tags -> data/processed/recipes_tagged.jsonl
-python -m scripts.simulate_users       # simulated users + feedback (training data)
-python -m scripts.train_ranker         # train the ranking model -> ml/artifacts/ranker.joblib
-python -m scripts.build_index          # search index (ChromaDB) for recipes + knowledge base
+python -m scripts.build_data           # every step: usda, recipenlg, foods, recipes, nutrition, tags, index
+python -m scripts.build_data tags      # or just the steps you name
+python -m scripts.train_ranker         # simulated users + train the ranking model (logged to MLflow)
 python -m scripts.check                # what is ready, what still needs running
 ```
 

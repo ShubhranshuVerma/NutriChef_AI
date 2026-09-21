@@ -176,8 +176,8 @@ The endpoint list is in *Architecture (v2)*, section 10.
 | FR-13 | Accept a free-text request of 3–1,000 characters | Met |
 | FR-14 | The Requirement Agent (plain Python, no LLM) turns it into structured constraints using fixed word lists and numbers with units; only known diets and allergen codes can come out | Met |
 | FR-15 | Saved allergies and exclusions are added to the request's (union rule), never removed | Met |
-| FR-16 | Similar recipes that pass the diet, allergen and calorie filters are retrieved and given to the Recipe Agent, with their source links | Met |
-| FR-17 | The Recipe Agent writes one recipe with quantities in grams or millilitres | Met |
+| FR-16 | Similar recipes, searched with the person's own words, that pass the diet, allergen and calorie filters are retrieved and given to the Recipe Agent, with their source links | Met |
+| FR-17 | The Recipe Agent writes one recipe of the kind the person asked for (it sees their words, fenced as data), with quantities in grams or millilitres | Met |
 | FR-18 | Nutrition and cost are computed by the calculator from the food tables, never taken from the LLM | Met |
 | FR-19 | Every draft is checked by `check_recipe` (section 4.4) | Met |
 | FR-20 | A draft that passes with no warnings is returned without calling the critic | Met |
@@ -259,7 +259,7 @@ The endpoint list is in *Architecture (v2)*, section 10.
 | NFR-10 | API keys are `SecretStr` and never printed; logs mask anything that looks like a key | Met |
 | NFR-11 | In production, a weak or placeholder JWT secret (under 32 characters) stops the app from starting | Met |
 | NFR-12 | Every input has size and range limits (text ≤ 1,000 chars, days ≤ 14, ≤ 10 allergies, ≤ 100 inventory items …) | Met |
-| NFR-13 | Prompt injection: the person's raw text never reaches the LLM (only short, checked fields do), all LLM output is schema-validated, and safety does not depend on the LLM | Met |
+| NFR-13 | Prompt injection: the person's words reach the LLM only fenced as data (and cannot close the fence), the hard limits are read by Python, all LLM output is schema-validated, and safety does not depend on the LLM | Met |
 | NFR-14 | Only minimal personal data is stored: email, password hash, profile, inventory, feedback | Met |
 | NFR-15 | A per-user rate limit on the LLM endpoints | **Not yet** |
 
@@ -275,7 +275,7 @@ The endpoint list is in *Architecture (v2)*, section 10.
 
 | ID | Requirement | Status |
 |---|---|---|
-| NFR-19 | The test suite runs offline with no API key, using a fake LLM (98 tests; 3 need the real data) | Met |
+| NFR-19 | The test suite runs offline with no API key, using a fake LLM (99 tests; 3 need the real data) | Met |
 | NFR-20 | Business logic is in services and engines, not in routes or the website | Met |
 | NFR-21 | With a LangSmith key, every LLM call and every recipe-workflow step is traced; without one nothing is sent | Met |
 | NFR-22 | Runs in a Docker container and deploys to AWS EC2 through Jenkins | **Not yet** (Phases 18-20) |
@@ -292,9 +292,10 @@ All tests are in `tests/`. Run with `python -m pytest -q`.
 | FR-2, FR-3 | `test_auth.py`: `test_a_stored_password_is_a_hash_not_the_password`, `test_a_password_bcrypt_would_quietly_cut_short_is_refused` |
 | FR-6, FR-7 | `test_auth.py`: `test_a_wrong_password_and_an_unknown_email_look_the_same`, `test_an_expired_token_is_refused`, `test_a_token_signed_with_another_secret_is_refused` |
 | FR-8, FR-15, FR-37 | `test_auth.py`: `test_a_saved_profile_comes_back`, `test_saved_allergies_are_added_to_a_plan_request`, `test_a_request_cannot_drop_a_saved_allergy`, `test_the_saved_kitchen_is_used_when_the_request_sends_none` |
-| FR-14, NFR-13 | `test_agents.py`: `test_the_request_is_read_without_an_llm`, `test_eggs_at_home_do_not_make_a_vegetarian_eat_eggs`, `test_allergies_are_found_in_everyday_wording`, `test_a_list_stops_where_the_next_part_of_the_sentence_starts`, `test_numbers_are_read_with_their_units`, `test_the_persons_text_never_reaches_gemini` |
+| FR-14, NFR-13 | `test_agents.py`: `test_the_request_is_read_without_an_llm`, `test_eggs_at_home_do_not_make_a_vegetarian_eat_eggs`, `test_allergies_are_found_in_everyday_wording`, `test_a_list_stops_where_the_next_part_of_the_sentence_starts`, `test_numbers_are_read_with_their_units`, `test_the_persons_text_is_fenced_off_as_data` |
 | FR-15 | `test_agents.py`: `test_saved_allergies_are_only_ever_added`, `test_a_saved_allergy_fails_a_recipe_the_request_never_mentioned` |
-| FR-16 | `test_agents.py`: `test_search_results_reach_the_recipe_prompt`, `test_search_skips_allergens_wrong_diets_and_too_many_calories` |
+| FR-17 | `test_agents.py`: `test_the_dish_they_asked_for_reaches_every_gemini_prompt` |
+| FR-16 | `test_agents.py`: `test_search_uses_their_words_and_the_results_reach_the_recipe_prompt`, `test_search_skips_allergens_wrong_diets_and_too_many_calories` |
 | FR-18 | `test_agents.py`: `test_nutrition_comes_from_the_calculator_not_the_llm`; `test_nutrition.py` (14 tests) |
 | FR-20 – FR-22, NFR-2 | `test_agents.py`: `test_a_clean_first_draft_takes_one_gemini_call`, `test_an_unsafe_draft_is_rewritten_until_it_passes`, `test_breaking_a_hard_rule_always_goes_to_the_critic`, `test_a_draft_short_on_protein_is_rewritten_too`, `test_it_gives_up_after_two_rewrites_and_says_so` |
 | FR-29 | `test_api.py`: `test_a_plan_in_plain_words_needs_no_gemini_key` |

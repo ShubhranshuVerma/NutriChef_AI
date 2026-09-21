@@ -64,9 +64,15 @@ def merge_with_profile(constraints, profile):
 
 # ---------- 2. recipe ----------
 
-def generate_recipe(constraints, context, llm):
-    """Constraints + similar recipes -> a new recipe."""
+def as_data(text):
+    """The person's words, safe to put between <<< >>>: they cannot close the fence."""
+    return str(text)[:1000].replace("<<<", "").replace(">>>", "").strip()
+
+
+def generate_recipe(constraints, context, llm, request_text=""):
+    """The request + the rules read from it + similar recipes -> a new recipe."""
     prompt = prompts.RECIPE_PROMPT.format(
+        request=as_data(request_text) or "(no description)",
         constraints=describe_constraints(constraints),
         context=context or "(nothing found)",
     )
@@ -108,8 +114,9 @@ def critique_recipe(checks):
 
 # ---------- 4. revision ----------
 
-def revise_recipe(constraints, recipe, critique, llm):
+def revise_recipe(constraints, recipe, critique, llm, request_text=""):
     prompt = prompts.REVISION_PROMPT.format(
+        request=as_data(request_text) or "(no description)",
         constraints=describe_constraints(constraints),
         recipe=describe_recipe(recipe),
         problems="\n".join(f"- {p}" for p in critique.problems) or "- none",

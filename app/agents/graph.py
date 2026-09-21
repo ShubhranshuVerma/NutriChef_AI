@@ -87,7 +87,9 @@ def make_nodes(deps):
             note(state, "search", "skipped (no search index)")
             return state
         constraints = state["constraints"]
-        query = f"{constraints.course or 'dinner'} with {', '.join(constraints.have_ingredients)}"
+        # Search with the person's own words: "comfort food with paneer" finds better
+        # examples than the few fields we could read out of it.
+        query = state["request_text"][:300]
         hits = search_recipes(query, diet=constraints.diet,
                               avoid_allergens=constraints.allergies,
                               max_kcal=constraints.max_kcal)
@@ -97,7 +99,8 @@ def make_nodes(deps):
         return state
 
     def write(state):
-        draft = agents.generate_recipe(state["constraints"], state["context"], llm)
+        draft = agents.generate_recipe(state["constraints"], state["context"], llm,
+                                       state["request_text"])
         state["draft"] = draft
         note(state, "write", draft.title)
         return state
@@ -116,7 +119,7 @@ def make_nodes(deps):
     def revise(state):
         state["revisions"] += 1
         state["draft"] = agents.revise_recipe(state["constraints"], state["recipe"],
-                                              state["critique"], llm)
+                                              state["critique"], llm, state["request_text"])
         note(state, f"revise {state['revisions']}", state["draft"].title)
         return state
 

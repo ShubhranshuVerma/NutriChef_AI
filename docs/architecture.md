@@ -68,7 +68,7 @@ needed. Everything that must be *correct* is deterministic and lives elsewhere.
 | Agent | Input → Output | Where |
 |---|---|---|
 | Requirement (Python, no LLM) | free text → `Constraints`: words from fixed lists (diets, allergens, courses) and numbers next to units ("600 calories", "25 g protein") | `app/agents/requirements.py` |
-| Recipe | constraints + RAG context → one `RecipeDraft`, quantities in grams | `generate_recipe` |
+| Recipe | the person's words (fenced as data) + the rules read from them + RAG context → one `RecipeDraft`, quantities in grams | `generate_recipe` |
 | Critic (Python, no LLM) | our check results → `Critique`: each failure and warning, with a fixed piece of advice | `critique_recipe` |
 | Revision | recipe + critique → a fixed `RecipeDraft` | `revise_recipe` |
 
@@ -389,7 +389,7 @@ step's seconds. Compare the revision count too — if the writer misses targets 
 - JWT bearer tokens (the website keeps one in the browser), bcrypt hashes, 60-minute expiry.
 - Pydantic limits on every input (text length, days ≤ 14, budget > 0, list sizes …).
 - Free-tier quota is protected by the answer cache and by not retrying a 429. There is no per-user rate limit yet (a Phase 22 hardening item).
-- Prompt injection: the person's raw text never reaches Gemini. The Python Requirement Agent turns it into short, checked fields first; all LLM output is schema-validated; safety is deterministic anyway.
+- Prompt injection: the person's words reach Gemini only inside `<<< >>>`, marked as data, with any `<<<`/`>>>` in them removed so they cannot close the fence; the hard limits come separately from the Python Requirement Agent; all LLM output is schema-validated; safety is deterministic anyway.
 - Disclaimers in every recipe/plan response and in the UI.
 - Minimal personal data: email, password hash, profile, inventory, feedback. Account deletion is not built yet (Phase 22).
 
@@ -471,7 +471,7 @@ recipenlg ────┴─> foods -> recipes -> nutrition -> tags -> index
 | 6 | Bearer JWT | Cookies (reference repo) | One token the browser sends on each call; no session store, no CSRF handling |
 | 7 | EC2 + compose, GHCR | ECS Fargate + ECR | Free-tier budget; ECS remains an upgrade path |
 | 8 | Synthetic interactions, clearly labeled | No ML until real users | Enables a genuine, evaluated model now |
-| 9 | Requirement Agent and critic in Python; saved answers + temperature 0 for the rest | LLM for all four; a local model | Two agents truly deterministic, two repeatable; fewer Gemini calls; raw text never reaches the LLM |
+| 9 | Requirement Agent and critic in Python; saved answers + temperature 0 for the rest | LLM for all four; a local model | Two agents truly deterministic, two repeatable; fewer Gemini calls |
 
 ---
 

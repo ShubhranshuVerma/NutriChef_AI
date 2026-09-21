@@ -225,3 +225,4 @@ Datasets and their licenses are listed in [`docs/data_sources.md`](docs/data_sou
 ## Acknowledgements
 
 Some backend patterns were informed by the [mealora-ai-agent](https://github.com/nithinsaikrishnaS/mealora-ai-agent) project (CC BY 4.0 per its README).
+

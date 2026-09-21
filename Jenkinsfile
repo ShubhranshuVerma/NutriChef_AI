@@ -1,81 +1,91 @@
-// NutriChef AI - one click on "Build Now" runs the whole project, step by step.
+// NutriChef AI - checks every change pushed to GitHub.
 //
-// Every stage runs one of the project's own commands, in your project folder,
-// with your project's Python. If a stage fails, the next ones do not run and
-// the console shows why. Setup steps: README.md, section "Jenkins".
+// Jenkins takes a clean copy of the code from GitHub (not your working folder), then:
+//   1. Setup        a fresh .venv with the project's libraries
+//   2. Test         the test suite; an HTML report opens in your browser, and the
+//                   results also appear on the build's "Tests" page
+//   3. Build image  the Docker image, tagged with the build number
+//   4. Smoke test   start that image and check that /health answers
+//
+// Rebuilding the data and the ranker is not part of it (run those two scripts yourself).
+// Setup steps: README.md, section "Jenkins".
 
 pipeline {
     agent any
 
+    // Look at GitHub every 5 minutes and build any new commit. "Build Now" works too.
+    triggers { pollSCM('H/5 * * * *') }
+
     environment {
-        // Your project folder on this Mac and the Python inside its .venv.
-        PROJECT = "${env.HOME}/NutriChef_AI"
-        PY      = "${env.HOME}/NutriChef_AI/.venv/bin/python"
+        // The Python 3.11 used to create the .venv. Change this if yours is elsewhere
+        // (in a terminal, `pyenv which python` shows the path).
+        PYTHON = "${env.HOME}/.pyenv/versions/3.11.8/bin/python3"
         // Jenkins does not use your terminal's settings, so tell it where docker is.
-        PATH    = "/usr/local/bin:/opt/homebrew/bin:${env.PATH}"
+        PATH   = "/usr/local/bin:/opt/homebrew/bin:${env.PATH}"
     }
 
     stages {
-        stage('Install libraries') {
+        stage('Setup') {
             steps {
-                dir(env.PROJECT) {
-                    sh '$PY -m pip install -r requirements.txt -r requirements-dev.txt'
+                // The .venv stays in Jenkins' copy between builds, so later installs are quick.
+                sh '''
+                    $PYTHON -m venv .venv
+                    .venv/bin/python -m pip install --quiet --upgrade pip
+                    .venv/bin/python -m pip install --quiet -r requirements.txt -r requirements-dev.txt
+                '''
+            }
+        }
+
+        stage('Test') {
+            steps {
+                // No .env and no data needed: Gemini is a fake in the tests.
+                sh '.venv/bin/python -m pytest -q --junitxml=test-results.xml --html=test-report.html --self-contained-html'
+            }
+            post {
+                always {
+                    junit 'test-results.xml'
+                    // Keep the report with the build (build page -> Build Artifacts) ...
+                    archiveArtifacts artifacts: 'test-report.html', allowEmptyArchive: true
+                    // ... and open it in your browser now, passed or failed (macOS "open").
+                    sh 'open test-report.html || true'
                 }
             }
         }
 
-        stage('Build data') {
+        stage('Build image') {
             steps {
-                dir(env.PROJECT) {
-                    // --rebuild starts the search index fresh, so recipes are not added twice
-                    sh '$PY -m scripts.build_data --rebuild'
-                }
+                sh 'docker build -t nutrichef-ai:$BUILD_NUMBER -t nutrichef-ai:latest .'
             }
         }
 
-        stage('Train ranker') {
+        stage('Smoke test') {
             steps {
-                dir(env.PROJECT) {
-                    sh '$PY -m scripts.train_ranker'
-                }
+                // Start the new image on port 8001 (so it does not clash with your app on
+                // 8000) with no data and no keys, and wait up to a minute for /health.
+                sh '''
+                    docker rm -f nutrichef-smoke 2>/dev/null || true
+                    docker run -d --name nutrichef-smoke -p 127.0.0.1:8001:8000 nutrichef-ai:$BUILD_NUMBER
+                    for i in $(seq 1 30); do
+                        if curl -fsS http://127.0.0.1:8001/health; then
+                            echo
+                            echo "The new image starts and answers /health."
+                            exit 0
+                        fi
+                        sleep 2
+                    done
+                    echo "No answer from /health after 60 seconds. The app's log:"
+                    docker logs nutrichef-smoke
+                    exit 1
+                '''
             }
-        }
-
-        stage('Check setup') {
-            steps {
-                dir(env.PROJECT) {
-                    sh '$PY -m scripts.check'
-                }
-            }
-        }
-
-        stage('Run tests') {
-            steps {
-                dir(env.PROJECT) {
-                    sh '$PY -m pytest -q'
-                }
-            }
-        }
-
-        stage('Demo meal plan') {
-            steps {
-                dir(env.PROJECT) {
-                    sh '$PY -m scripts.demo plan --days 3'
-                }
-            }
-        }
-
-        stage('Build Docker image') {
-            steps {
-                dir(env.PROJECT) {
-                    sh 'docker compose build'
-                }
+            post {
+                always { sh 'docker rm -f nutrichef-smoke 2>/dev/null || true' }
             }
         }
     }
 
     post {
-        success { echo 'All steps passed.' }
-        failure { echo 'A step failed - open the red stage and read its log.' }
+        success { echo "Build $BUILD_NUMBER passed: tested, image built, image starts." }
+        failure { echo 'A stage failed - open the red stage and read its log.' }
     }
 }

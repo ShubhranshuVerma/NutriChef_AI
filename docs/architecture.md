@@ -431,12 +431,13 @@ step's seconds. Compare the revision count too — if the writer misses targets 
 
 Phase 18 (Docker) and Phase 19 (Jenkins) are built; Phase 20 (EC2) is the plan below.
 
-**Jenkins, as built.** Jenkins runs on the Mac (Homebrew). One click on *Build Now* runs the
-`Jenkinsfile`: seven stages, each one of the project's own commands, run in the project folder
-with the project's `.venv` Python: install libraries → build data (`--rebuild`, so the search
-index is not filled twice) → train the ranker → check the setup → run the tests → demo a meal
-plan → `docker compose build`. A failed stage stops the run and its log says why. No Gemini
-request is made, so a build costs no quota.
+**Jenkins, as built.** Jenkins runs on the Mac (Homebrew) and checks every change pushed to
+GitHub (it polls every 5 minutes; *Build Now* works too). The `Jenkinsfile` takes a clean copy
+of the code, not the working folder, and runs four stages: **Setup** (a `.venv` with the
+requirements) → **Test** (`pytest`; an HTML report opens in the browser when the stage ends and is kept with the build, and the results are also published as a JUnit report with a trend graph) → **Build
+image** (`nutrichef-ai:<build number>` and `:latest`) → **Smoke test** (start the image on port
+8001 and wait for `/health`). The tests need no `.env`, no data and no Gemini. Rebuilding the
+data and the ranker stays a manual step, because the raw data is not on GitHub.
 
 **Docker, as built.** One image runs the API and the website (`Dockerfile`, `compose.yml`,
 `.dockerignore`):
@@ -458,7 +459,7 @@ falls back to the rule score and logs a warning instead of breaking every plan.
 ```mermaid
 flowchart LR
     Dev["Mac (local dev)"] -->|"git push"| GH["GitHub repo"]
-    GH -->|"webhook / poll"| J["Jenkins (on the Mac)"]
+    GH -->|"poll every 5 min"| J["Jenkins (on the Mac)"]
     J -->|"pytest + report"| J
     J -->|"docker buildx (linux/arm64)"| IMG["Image: api (serves the website too)"]
     IMG -->|"push"| REG["GitHub Container Registry"]

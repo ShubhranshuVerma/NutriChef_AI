@@ -172,25 +172,26 @@ docker compose down
 version the image installs (the one in `requirements.txt`); if it cannot be read, plans still
 work on the rule score and the log says to run `python -m scripts.train_ranker`.
 
-## Jenkins: run everything with one click
+## Jenkins: every push is tested and built
 
-[`Jenkinsfile`](Jenkinsfile) runs the project's own commands one after another, in your
-project folder, with your project's Python:
+[`Jenkinsfile`](Jenkinsfile) checks each change pushed to GitHub. Jenkins takes a clean copy
+of the code (not your working folder) and runs:
 
-| Stage | Command |
+| Stage | What it does |
 |---|---|
-| Install libraries | `pip install -r requirements.txt -r requirements-dev.txt` |
-| Build data | `python -m scripts.build_data --rebuild` |
-| Train ranker | `python -m scripts.train_ranker` |
-| Check setup | `python -m scripts.check` |
-| Run tests | `python -m pytest -q` |
-| Demo meal plan | `python -m scripts.demo plan --days 3` |
-| Build Docker image | `docker compose build` |
+| Setup | makes a `.venv` and installs `requirements.txt` and `requirements-dev.txt` |
+| Test | `pytest`; an HTML report **opens in your browser** when the stage ends (pass or fail), is kept with the build under **Build Artifacts**, and the results also appear on the build's **Tests** page with a trend graph |
+| Build image | `docker build -t nutrichef-ai:<build number> -t nutrichef-ai:latest .` |
+| Smoke test | starts that image on port 8001 and checks `/health` answers |
 
-If a stage fails, the rest are skipped and that stage's log shows why. No Gemini request is
-made, so it costs no quota.
+Jenkins looks at GitHub every 5 minutes and builds new commits; **Build Now** runs it any time.
+If a stage fails, the rest are skipped and that stage's log shows why. The tests need no
+`.env` and no data, and no Gemini request is made.
 
-**One-time setup** (Homebrew):
+Rebuilding the data and the ranker is not part of it; run those yourself when needed:
+`python -m scripts.build_data --rebuild`, then `python -m scripts.train_ranker`.
+
+**One-time setup** (Homebrew; Docker Desktop running):
 
 ```bash
 brew install jenkins-lts
@@ -204,11 +205,11 @@ cat ~/.jenkins/secrets/initialAdminPassword
 3. Under **Pipeline**: Definition **Pipeline script from SCM** → SCM **Git** → Repository URL
    `https://github.com/ShubhranshuVerma/NutriChef_AI.git` → Branch `*/main` →
    Script Path `Jenkinsfile` → **Save**.
-4. Click **Build Now**. Each stage turns green as it finishes; click one to see its log.
+4. Click **Build Now**. The first build takes a while (libraries and the image); later ones reuse
+   them.
 
-Jenkins reads the `Jenkinsfile` from GitHub (so push it first) and runs the commands in
-`~/NutriChef_AI`. Docker Desktop must be running for the last stage. The first run takes a
-while (building the data and the image); later runs are faster. Stop Jenkins with
+The `Jenkinsfile` expects Python 3.11 at `~/.pyenv/versions/3.11.8/bin/python3` (the `PYTHON`
+line at its top; `pyenv which python` shows yours). Stop Jenkins with
 `brew services stop jenkins-lts`.
 
 ## Data
@@ -225,4 +226,3 @@ Datasets and their licenses are listed in [`docs/data_sources.md`](docs/data_sou
 ## Acknowledgements
 
 Some backend patterns were informed by the [mealora-ai-agent](https://github.com/nithinsaikrishnaS/mealora-ai-agent) project (CC BY 4.0 per its README).
-

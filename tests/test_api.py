@@ -133,3 +133,17 @@ def test_the_website_does_not_hide_the_api(client):
     assert client.get("/health").json()["status"] == "ok"
     assert client.post("/api/v1/auth/login",
                        json={"email": "a@b.com", "password": "x"}).status_code in (401, 422)
+
+
+def test_warm_up_never_stops_the_app_from_starting(monkeypatch):
+    """With no Gemini key or no data yet, warm-up logs a warning and the app still starts."""
+    from app.api import main
+    from app.services import planner, recipe_service
+
+    def missing(*args, **kwargs):
+        raise RuntimeError("GOOGLE_API_KEY is not set in .env")
+
+    monkeypatch.setattr(planner, "load_dependencies", missing)
+    monkeypatch.setattr(recipe_service, "load_dependencies", missing)
+    monkeypatch.setenv("WARM_UP", "true")
+    assert main.create_app() is not None

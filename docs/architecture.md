@@ -422,7 +422,8 @@ Phase 18 (Docker) is built; Phases 19-20 (Jenkins, EC2) are the plan below.
 | `.env` read by compose at run time | keys never enter the image |
 | a normal user (`chef`, uid 1000) | the app does not run as root |
 | `HEALTHCHECK` on `/health` | Docker (and later EC2) can tell when it is up or stuck |
-| a named volume for the embedding model | downloaded once, not on every restart |
+| the search model baked into the image, `HF_HUB_OFFLINE=1` | no download or Hugging Face check at start |
+| `WARM_UP=true` | the library, tables and search model load when the container starts, so the first visitor only waits for Gemini; a missing key or data is logged, never fatal |
 | port bound to `127.0.0.1` locally | only this computer can reach it until deployment opens it deliberately |
 
 A ranker saved by a different scikit-learn version cannot always be read back, so `load_model`

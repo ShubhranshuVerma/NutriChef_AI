@@ -29,10 +29,25 @@ medical advice, and it cannot guarantee allergy safety.
 """
 
 
+def warm_up():
+    """Load everything the two scenarios need now, not on the first visitor's request."""
+    from app.services import planner, recipe_service
+
+    for name, load in [("meal plans", planner.load_dependencies),
+                       ("recipes", recipe_service.load_dependencies)]:
+        try:
+            load()
+            log.info("warm-up: %s ready", name)
+        except Exception as error:   # e.g. no Gemini key or no data yet: the app still starts
+            log.warning("warm-up: %s not loaded yet (%s)", name, error)
+
+
 def create_app():
     configure_logging()
     configure_tracing()          # before anything builds an LLM
     create_tables()
+    if get_settings().warm_up:
+        warm_up()
     app = FastAPI(title=get_settings().app_name, description=DESCRIPTION, version=VERSION)
     app.include_router(health_router)
     app.include_router(auth.router)

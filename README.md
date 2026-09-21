@@ -163,8 +163,8 @@ docker compose down
 
 | File | What it does |
 |---|---|
-| `Dockerfile` | Python 3.11, CPU-only PyTorch (about 2 GB smaller), the requirements, then the code; runs as a normal user, with a health check on `/health` |
-| `compose.yml` | reads your keys from `.env`, mounts `data/processed` and `ml/artifacts`, keeps the embedding model between restarts |
+| `Dockerfile` | Python 3.11, CPU-only PyTorch (about 2 GB smaller), the requirements, the search model (so it never downloads at start), then the code; runs as a normal user, with a health check on `/health` |
+| `compose.yml` | reads your keys from `.env`, mounts `data/processed` and `ml/artifacts`, and turns on warm-up: the library and search model load when the container starts, not on the first request |
 | `.dockerignore` | keeps `.env`, raw data and local clutter out of the image |
 
 `.env` is never copied into the image. The ranker must be trained with the same scikit-learn

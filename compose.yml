@@ -16,14 +16,12 @@ services:
       - "127.0.0.1:8000:8000"
     # Your keys stay in .env on your disk; they are never copied into the image.
     env_file: .env
+    environment:
+      # load the recipe library and search model at start, not on the first request
+      WARM_UP: "true"
     volumes:
       # recipe library, search index, database and saved Gemini answers
       - ./data/processed:/app/data/processed
       # the trained ranker (read-only)
       - ./ml/artifacts:/app/ml/artifacts:ro
-      # the embedding model, downloaded once and kept between restarts
-      - model-cache:/app/.cache
     restart: unless-stopped
-
-volumes:
-  model-cache:

@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     app_name: str = "NutriChef AI"
     environment: Literal["development", "test", "production"] = "development"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+    # Load the recipe library, tables and search model when the server starts, so
+    # the first visitor does not wait for it. Docker turns this on (compose.yml).
+    warm_up: bool = False
 
     # ---------- LLM ----------
     google_api_key: SecretStr | None = None

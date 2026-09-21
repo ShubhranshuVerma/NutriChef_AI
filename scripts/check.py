@@ -73,7 +73,7 @@ def ping_llm() -> bool:
     from app.core.llm import answer_text, get_llm
 
     try:
-        reply = answer_text(get_llm(temperature=0).invoke("Reply with exactly one word: OK"))
+        reply = answer_text(get_llm().invoke("Reply with exactly one word: OK"))
     except Exception as exc:
         print(f"  {MISSING} Gemini call failed: {type(exc).__name__}: {str(exc)[:200]}")
         return False

@@ -74,8 +74,8 @@ python -m scripts.demo plan --no-llm --days 3 --budget 800
 python -m scripts.demo plan --slots breakfast,lunch,dinner,snack   # fuller days
 ```
 
-LLM answers are cached on disk (`data/processed/llm_cache`), so repeating a request costs no
-Gemini quota and returns instantly — the free tier allows only a few requests per day. After
+LLM answers are cached on disk (`data/processed/llm_cache`), so repeating a request gives the
+same result, costs no Gemini quota and returns instantly — the free tier allows only a few requests per day. After
 changing a prompt, clear it:
 
 ```bash

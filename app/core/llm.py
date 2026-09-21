@@ -113,7 +113,14 @@ class CachedLLM:
         return FakeReply(text)
 
 
-def get_llm(temperature=None, cache=None):
+# Ask Gemini for its most likely answer, the same way every time. Some Gemini models
+# ignore these two, which is why the saved-answer cache below is what really makes a
+# repeated request give the same result.
+TEMPERATURE = 0
+SEED = 42
+
+
+def get_llm(cache=None):
     """Gemini, configured from .env, wrapped in the disk cache unless turned off."""
     from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -123,7 +130,8 @@ def get_llm(temperature=None, cache=None):
     options = {
         "model": settings.gemini_model,
         "google_api_key": settings.google_api_key.get_secret_value(),
-        "temperature": settings.llm_temperature if temperature is None else temperature,
+        "temperature": TEMPERATURE,
+        "seed": SEED,
         "timeout": settings.llm_timeout_seconds,
         "max_retries": settings.llm_max_retries,
         # Every agent answers in JSON. Asking for JSON only stops the model wrapping

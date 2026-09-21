@@ -285,8 +285,6 @@ function renderRecipe(result) {
        <ul class="ing">${r.ingredients.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>
        <h3 style="margin-top:1.6rem">How to make it</h3>
        <ol class="method">${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
-       <details class="how"><summary>How we made this</summary>
-         <ol>${story(result).map((s) => `<li>${esc(s)}</li>`).join('')}</ol></details>
      </div>`;
 
   const right = el('div', 'card');
@@ -331,19 +329,6 @@ function renderRecipe(result) {
   mountPhotos(box);
 }
 
-function story(result) {
-  const lines = ['Read your request and pulled out the rules it has to follow.',
-    'Looked through our collection for something similar.',
-    'Wrote the recipe with every quantity in grams.',
-    'Worked out the nutrition and cost from a food database — not guessed.'];
-  if (result.revisions) {
-    lines.push(`Found something off and rewrote it ${result.revisions} ` +
-      `time${result.revisions > 1 ? 's' : ''}.`);
-  }
-  lines.push('Checked it against your diet, allergies and limits one last time.');
-  return lines;
-}
-
 async function rate(recipeId, liked) {
   try { await api.feedback(recipeId, liked); toast('Thanks — we will remember that.'); }
   catch (error) { toast(explain(error), true); }
@@ -358,7 +343,7 @@ async function generate() {
   $('recipeResult').innerHTML =
     `<div class="result"><div class="cooking"><span class="spinner"></span>
       <div><strong>Writing your recipe…</strong>
-      <div class="muted">Then we check every number against a food database.</div></div></div>
+      <div class="muted">This usually takes a few seconds.</div></div></div>
      <div class="recipe-grid" style="margin-top:1rem">
       <div class="skeleton" style="height:420px"></div>
       <div class="skeleton" style="height:280px"></div></div>`;
@@ -455,7 +440,7 @@ async function buildPlan() {
   $('planResult').innerHTML =
     `<div class="result"><div class="cooking"><span class="spinner"></span>
       <div><strong>Choosing meals that fit…</strong>
-      <div class="muted">Checking every recipe against your rules and your budget.</div></div></div></div>`;
+      <div class="muted">Picking meals that fit your rules and your budget.</div></div></div></div>`;
   try {
     state.plan = await api.plan({
       days: Number($('planDays').value),

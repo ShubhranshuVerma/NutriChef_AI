@@ -1,7 +1,7 @@
-# NutriChef AI — Architecture (v1)
+# NutriChef AI — Architecture (v2)
 
 > Constraint-aware personalized meal planning & recipe intelligence platform.
-> Status: describes what is built (Phases 0-17, then simplified: fewer files, plain code, a core test set). Sections marked *(Phase N)* are planned, not written yet.
+> Status: v2 describes what is built and running (Phases 0-17, then simplified: fewer files, plain code, a core test set). Only section 13 (deployment) is still a plan.
 > Nutrition values are estimates. NutriChef is a general wellness / meal-planning tool, not a medical device, and never guarantees allergy safety.
 
 ---
@@ -19,26 +19,25 @@
 
 ## 2. System context
 
-The finished picture.
-
 ```mermaid
-flowchart LR
-    U["User (browser)"] --> UI["Website (HTML/CSS/JS)"]
+flowchart TB
+    U["User (browser)"] --> UI["Website (HTML/CSS/JS)<br/>served by FastAPI"]
     UI -->|"HTTP + JWT"| API["FastAPI backend"]
-    API --> SVC["Services layer"]
-    SVC --> G["Agent graph (LangGraph)"]
-    SVC --> ENG["Deterministic engines<br/>nutrition · validation · pricing · inventory"]
-    SVC --> ML["ML ranker (scikit-learn)"]
-    G --> LLM["Gemini Flash"]
-    G --> RAG["RAG retriever"]
-    G --> ENG
-    G --> ML
-    RAG --> VS[("ChromaDB")]
-    SVC --> DB[("SQLite")]
-    ML -.->|"load model"| MLF[("MLflow registry / artifacts")]
+    API --> DB[("SQLite<br/>users, profiles, inventory, feedback")]
+    API --> RS["recipe_service"]
+    API --> PL["planner"]
+    RS --> G["Recipe workflow (LangGraph)"]
+    G --> LLM["Gemini Flash (LangChain)"]
+    G --> RAG["RAG search"] --> VS[("ChromaDB")]
+    G --> ENG["Deterministic engines<br/>nutrition · checks"]
+    PL --> ENG
+    PL --> ML["Ranker (scikit-learn)"]
+    PL -.->|"free text only"| LLM
     G -.->|"traces"| LS[("LangSmith")]
-    ENG -.->|"traces"| LS
 ```
+
+One Python process serves both the API and the website. The recipe path uses the LLM; the
+meal-plan path only uses it to read a free-text request, and is otherwise pure Python.
 
 ---
 
@@ -48,7 +47,7 @@ flowchart LR
 |---|---|---|---|
 | API | `app/api/` | Routing, request/response schemas, error mapping | No |
 | Services | `app/services/` | `recipe_service` (Scenario 1), `planner` (Scenario 2) | No (calls the agents) |
-| Agents | `app/agents/` | 4 LLM agents, the LangGraph workflow, their output schemas, RAG search (`rag.py`) | Yes (search: embeddings only) |
+| Agents | `app/agents/` | 4 agents (3 call Gemini), the LangGraph workflow, their output schemas, RAG search (`rag.py`) | Yes (search: embeddings only) |
 | Nutrition engine | `app/nutrition/` | Parse → grams → nutrients and cost; allergen, diet and limit checks (`checks.py`) | No |
 | ML | `app/ml/` | Features, ranker, cold-start blend, metrics. Training is `scripts/train_ranker.py` | No |
 | Data | `app/data/` | Read USDA / RecipeNLG / reference files, clean them into recipes | No |
@@ -64,14 +63,14 @@ would add files without adding clarity.
 
 ## 4. Agents — who does what
 
-Four functions call the LLM, in `app/agents/agents.py`. Everything that must be *correct* is
-deterministic and lives elsewhere.
+Four agents, in `app/agents/agents.py`. Three call Gemini; the critic is plain Python.
+Everything that must be *correct* is deterministic and lives elsewhere.
 
 | Agent | Input → Output | Where |
 |---|---|---|
 | Requirement | free text → `Constraints` (diet, allergies, exclusions, targets) | `extract_requirements` |
 | Recipe | constraints + RAG context → one `RecipeDraft`, quantities in grams | `generate_recipe` |
-| Critic | recipe + our nutrition and check results → `Critique` | `critique_recipe` |
+| Critic (Python, no LLM) | our check results → `Critique`: each failure and warning, with a fixed piece of advice | `critique_recipe` |
 | Revision | recipe + critique → a fixed `RecipeDraft` | `revise_recipe` |
 
 Every answer is cached on disk by `CachedLLM` (`app/core/llm.py`), keyed by the prompt **and**
@@ -79,7 +78,21 @@ the model name. The free Gemini tier allows about 20 requests per day per projec
 one recipe run costs 2-4 of them, so without a cache a UI is unusable. The trade-off is that a
 cached answer is the old answer: change a prompt, clear the cache.
 
-`invoke_with_retry` (same file) sits in `agents.ask`, so all four agents share it. A 503 ("high
+**Deterministic by design.** The same request always gives the same result:
+
+1. **Saved answers.** The cache is on by default (`LLM_CACHE=true`), so a prompt Gemini has
+   answered once is answered from disk from then on, word for word.
+2. **Most likely answer.** Gemini is called with `temperature=0` and `seed=42` (`app/core/llm.py`).
+   Some Gemini models ignore these, which is why the cache is the real guarantee.
+3. **No LLM where rules will do.** The critic is built from the check results in Python, and
+   nutrition, allergens, diets, checks, search, ranking and planning were already Python.
+4. **Stable prompts.** Each prompt is built the same way every time (saved allergies are merged
+   in sorted order), so the same request always hits the same saved answer.
+
+Two things still change the answer: clearing the cache, or changing a prompt, the model name or
+the search index (the prompt text changes, so it is a new question).
+
+`invoke_with_retry` (same file) sits in `agents.ask`, so all three Gemini agents share it. A 503 ("high
 demand") is temporary and is retried up to three times with a growing pause; a 429 is the daily
 allowance and is not retried at all - it raises `QuotaExhausted`, which the API turns into a 503
 with a sentence the person can act on. Together with the cache this means a run that dies
@@ -103,18 +116,19 @@ flowchart TD
     E --> F["check<br/>nutrition → tags → check_recipe"]
     F --> K{"passed, and<br/>no warnings?"}
     K -->|"yes"| J
-    K -->|"no"| G["critique<br/>Critic Agent"]
+    K -->|"no"| G["critique<br/>Python: failures + warnings → fixes"]
     G --> H{"problems, and fewer<br/>than 2 revisions so far?"}
     H -->|"yes"| I["revise<br/>Revision Agent"]
     I --> F
     H -->|"no"| J["finish<br/>status = ok only if the checks passed"]
 ```
 
-A draft that passes every check with no warnings skips the critic entirely. The critic used to
-read every draft, which cost a clean run one Gemini call in three, and a stylistic nitpick could
-send a recipe that was already fine through two rewrites. Warnings still go to the critic: a
-draft short of the protein target passes the hard rules but is exactly what a rewrite is for.
-A draft that breaks a hard rule always does.
+A draft that passes every check with no warnings is finished. Anything else goes to the critic,
+which is plain Python: it lists every failure and warning from `check_recipe` with a fixed piece
+of advice (for "contains soy": remove it and use a safe substitute). The Revision Agent rewrites
+the recipe from that list and it is checked again, at most twice. The critic used to be a Gemini
+call; it only ever restated our own check results, so making it Python made the loop
+deterministic and saved one call per rewrite.
 
 **Graph state** (a plain dict, `app/agents/graph.py`): `request_text, profile, constraints, context, sources, draft, recipe, nutrition, checks, critique, revisions, status, trace[]`.
 
@@ -169,152 +183,132 @@ rest in ₹.
 
 ## 7. RAG pipeline (two collections)
 
-RecipeNLG (Bień et al., INLG 2020; ~2.2M recipes; columns `title, ingredients, directions, link, source, NER`) is the **recipe knowledge base**. A small guidance corpus covers what RecipeNLG does not (nutrition, allergens, diet rules, substitutions, food safety).
+RecipeNLG (Bień et al., INLG 2020; ~2.2M recipes) is the **recipe knowledge base**. A small
+guidance corpus (`data/knowledge_base/`, 6 markdown files) covers nutrition, allergens, diet
+rules, substitutions, cooking basics and food safety.
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph R1["Collection: recipes"]
-      N["RecipeNLG CSV<br/>(manual download, git-ignored)"] --> F["Filter + dedupe<br/>complete rows, 3–20 ingredients,<br/>configurable subset size"]
-      F --> P["Parse quantities → grams<br/>map NER → food_id"]
-      P --> T["Deterministic tags<br/>diet flags, contains_soy / contains_milk …, mapped_ratio"]
-      T --> D1["1 recipe = 1 document<br/>title + ingredients + directions"]
+      N["RecipeNLG CSV<br/>(manual download, git-ignored)"] --> F["sample + clean<br/>(build_data: recipenlg, recipes)"]
+      F --> P["grams, nutrition, cost<br/>(build_data: nutrition)"]
+      P --> T["allergens, food groups, diets<br/>(build_data: tags)"]
+      T --> D1["1 recipe = 1 document<br/>+ has_allergen / ok_diet flags"]
     end
     subgraph R2["Collection: guidance"]
-      G["USDA · FDA · FSSAI · own notes"] --> C2["Clean + chunk ~500 tokens"]
+      G["6 markdown files"] --> C2["split into ~1,200-character chunks"]
     end
-    D1 --> E["Embed (HuggingFace MiniLM, local)"]
+    D1 --> E["Embed (MiniLM, local)"]
     C2 --> E
     E --> V[("ChromaDB")]
-    Q["Query from ConstraintSpec + inventory"] --> RET["Retriever<br/>recipes: top-k=5 with metadata filters<br/>(is_vegetarian=true, contains_soy=false …)<br/>guidance: top-k=3"]
+    Q["search node: constraints → query"] --> RET["top 5 recipes, filtered by<br/>diet, allergens, calories"]
     V --> RET
-    RET --> CTX["Context + source links → Recipe / Critic agents"]
+    RET --> CTX["examples + source links → Recipe Agent"]
 ```
 
-**How RecipeNLG is used**
-- **Retrieval-augmented generation:** similar, constraint-compatible recipes are retrieved and the Recipe Agent *adapts* them (use available paneer/eggs, remove whey, hit protein target). Final output cites `Adapted from: <link>`.
-- **Recipe library:** parsed rows with ≥ 90 % of ingredients mapped to the food DB are stored in `recipes` (origin=`recipenlg`) with computed nutrition → used by the ML ranker and meal planner.
-- **Metadata pre-filtering** removes obviously unsafe recipes before the LLM sees them; the Safety Agent still re-validates everything afterwards (metadata filters are a convenience, not the safety guarantee).
-- Recipes are never chunked mid-recipe; Chroma metadata stores allergens/diet as scalar boolean flags.
+- Code: `app/agents/rag.py`. Built by `python -m scripts.build_data index`.
+- Each recipe's metadata stores `has_<allergen>` and `ok_<diet>` as true/false flags, so Chroma
+  can filter before ranking by similarity.
+- The filter is a convenience, not the safety guarantee: every written recipe is checked again
+  by `check_recipe`.
+- Retrieved text is untrusted, so it is placed in the prompt as quoted data.
+- The guidance collection is indexed and searchable (`search_guidance`) but the recipe workflow
+  does not use it yet.
 
-**Constraints of the dataset (and mitigations)**
+**Dataset constraints and how they are handled**
 
 | Issue | Mitigation |
 |---|---|
-| License: *non-commercial research & educational use only*; download requires accepting terms | Project is educational/non-commercial; data never committed to git or baked into Docker images; attribution + terms in `docs/data_sources.md`; public demo labeled non-commercial |
-| Recipe text originates from third-party websites | Keep `link`, show source, generate adapted recipes rather than republishing verbatim |
-| No nutrition, no allergen labels | Our nutrition engine + allergen tables compute them |
-| US-centric, cups/oz, free-text quantities | Fixed parser + unit/density conversion; Indian supplement set (curated, ~50 recipes) |
-| 2.2M rows (~2 GB) too large for laptop dev / small EC2 | `RECIPENLG_SUBSET_SIZE` (dev 5k, demo ~50k); prefer `source=Gathered` rows; index built offline and mounted as a volume |
-| Duplicates / noisy rows | Normalized-title + ingredient-set dedupe, row-level quality checks |
-
-- Guidance topics: `nutrition`, `allergens`, `diet_rules`, `substitutions`, `cooking`, `food_safety`.
-- RAG *informs* the LLM; it never overrides deterministic checks.
-- Every source records its license in `docs/data_sources.md`.
-- Retrieved text is wrapped as quoted data in prompts (prompt-injection guard — scraped recipe text is untrusted).
+| License: non-commercial research and educational use only | Educational project; data never committed to git or put in images; terms in `docs/data_sources.md` |
+| Recipe text comes from third-party websites | Keep the source link; the LLM writes adapted recipes, not copies |
+| No nutrition or allergen labels | Our nutrition engine and keyword tables compute them |
+| US units (cups, oz) and free-text quantities | Parser plus unit and density conversion; 50 curated Indian recipes added |
+| ~2 GB, too big for a laptop or small server | A sampled subset (`RECIPENLG_SUBSET_SIZE`, default 15,000) |
 
 ---
 
 ## 8. ML personalization / ranking
 
-| Item | Decision |
+| Item | What is built |
 |---|---|
-| Task | Pointwise: P(user likes recipe) — label = like / save / rating ≥ 4 (positive) vs dislike / skip / rating ≤ 2 (negative) |
-| Models | Baselines: popularity, rule-based score → Logistic Regression → Gradient Boosting |
+| Task | P(user likes recipe), one recipe at a time |
+| Models | Rule-score baseline, Logistic Regression, Gradient Boosting; the best by ROC-AUC is saved |
 | Features | 11, in `app/ml/features.py`: calorie_fit, protein_fit, cost_fit, time_fit, cuisine_match, diet_match, ingredient_overlap, inventory_use, is_indian, is_curated, n_ingredients_scaled |
-| Data | Simulated users & interactions (labeled `synthetic=true`) + real app feedback over time |
-| Split | Per-user time-based leave-last-out (no leakage) |
-| Metrics | Precision@K, Recall@K, HitRate@K, NDCG@K (K = 5, 10), plus ROC-AUC |
-| Cold start | users with < 5 interactions: `score = α·rule_score + (1−α)·model_score`, α = 1 − n/5 |
-| Tracking | MLflow (local SQLite file `mlflow.db`): params and metrics per run; the chosen model is saved to `ml/artifacts/ranker.joblib` |
-| Serving | `app/ml/ranker.py` loads `ml/artifacts/ranker.joblib` on demand; if it is missing, the rule score is used |
+| Data | Simulated users and interactions (`scripts/train_ranker.py`, 200 users by default), labelled synthetic |
+| Split | Per user, by time: the latest interactions are the test set |
+| Metrics | Precision@5, Recall@5, HitRate@5, NDCG@5 (`app/ml/metrics.py`) and ROC-AUC |
+| Cold start | `score = w·model + (1−w)·rule`, `w = min(n, 5) / 5` for a user with n interactions |
+| Tracking | MLflow in `mlflow.db`; the chosen model goes to `ml/artifacts/ranker.joblib` |
+| Serving | `planner.load_dependencies` loads the model once per process; no model file means rule score only |
+
+**Known gap.** Likes and dislikes are saved (`POST /users/me/feedback`), but the planner does
+not yet pass a user's interaction count to the ranker, so `n = 0` and every user is scored by the
+rule score alone. Fixing this is the next planned change.
 
 ---
 
 ## 9. Data model (SQLite via SQLAlchemy)
 
-Built in Phase 14, but smaller than the plan below: four tables in one file (`app/database/models.py`) - `users`, `profiles`, `inventory`, `feedback` - created with `Base.metadata.create_all()` at startup. No migration tool and no repository layer; the routes use a session directly. The `foods`/`recipes` tables were dropped from the plan because that data lives in files the pipeline rebuilds.
+Four tables in one file, `app/database/models.py`, created with `Base.metadata.create_all()`
+when the app starts. No migration tool and no repository layer: the routes use a session
+directly. Recipes, foods and prices are not in the database — they live in files that
+`scripts/build_data.py` rebuilds.
 
 ```mermaid
 erDiagram
-    users ||--|| user_preferences : has
+    users ||--o| profiles : has
     users ||--o{ inventory : owns
-    users ||--o{ interactions : gives
-    users ||--o{ meal_plans : creates
-    foods ||--o{ food_aliases : "known as"
-    foods ||--o{ food_allergens : contains
-    allergens ||--o{ food_allergens : ""
-    foods ||--o{ prices : priced
-    foods ||--o{ recipe_ingredients : "used in"
-    recipes ||--o{ recipe_ingredients : has
-    recipes ||--|| recipe_nutrition : cached
-    recipes ||--o{ interactions : receives
-    meal_plans ||--o{ meal_plan_items : contains
-    recipes ||--o{ meal_plan_items : "scheduled as"
+    users ||--o{ feedback : gives
 ```
 
-| Table | Key columns |
+| Table | Columns |
 |---|---|
-| `users` | id, email, password_hash, created_at |
-| `user_preferences` | user_id, diet, allergens (JSON), exclusions (JSON), cuisines (JSON), calorie_target, protein_target_g, max_cook_minutes, skill_level, budget_per_day |
-| `foods` | id, name, category, kcal, protein_g, carbs_g, fat_g, fiber_g (per 100 g), is_vegetarian, is_vegan, source, source_ref |
-| `food_aliases` | food_id, alias |
-| `allergens` / `food_allergens` | allergen code (milk, egg, soy, peanut, tree_nut, wheat_gluten, fish, shellfish, sesame, mustard …) |
-| `diet_rules` | diet, rule_type (forbid_category / forbid_food / require_flag), value |
-| `prices` | food_id, price_inr, per_unit (kg/l/piece), region, source, as_of |
-| `recipes` | id, name, cuisine, meal_type, cook_minutes, skill, servings, instructions (JSON), origin (recipenlg/curated/generated), source_url, external_id, mapped_ratio, created_at |
-| `recipe_ingredients` | recipe_id, food_id, grams, display_qty, display_unit |
-| `recipe_nutrition` | recipe_id, per-serving kcal/protein/carbs/fat/fiber, cost_inr, computed_at |
-| `inventory` | user_id, food_id, grams, expires_on |
-| `interactions` | user_id, recipe_id, event (view/like/dislike/save/skip/rate/cook), value, reason, created_at |
-| `meal_plans` / `meal_plan_items` | plan: user_id, start_date, days, budget, totals (JSON); item: day, slot, recipe_id, servings |
-| `generation_runs` | id, user_id, kind, iterations, status, latency_ms, model, violations (JSON), created_at — audit/observability |
+| `users` | id, email (unique), password_hash, created_at |
+| `profiles` | user_id (unique), diet, allergies, exclude (semicolon-separated), min_protein_g, max_kcal, max_cook_minutes, budget_per_meal_inr |
+| `inventory` | user_id, ingredient_id (unique per user), grams, expires_in_days |
+| `feedback` | user_id, recipe_id, liked (1/0), reason, created_at |
 
-Feedback is stored as `interactions` with `event` + optional `reason`.
+Deleting a user deletes their profile, inventory and feedback (cascade), though no endpoint for
+this exists yet. If the schema changes during development, the local SQLite file is deleted and
+recreated.
 
-Tables are created at startup with SQLAlchemy `Base.metadata.create_all()` (no migration tool). If the schema changes during development, the local SQLite file is deleted and re-seeded.
+File-based data (git-ignored, rebuilt by the scripts):
+
+| File | Holds |
+|---|---|
+| `data/processed/usda_foods.csv`, `ingredient_foods.csv` | nutrients per 100 g, matched to the ingredient catalog |
+| `data/processed/recipes_tagged.jsonl` | the recipe library: grams, nutrition, cost, allergens, diets, `library_ready` |
+| `data/processed/chroma_db/` | the search index |
+| `data/processed/llm_cache/` | cached Gemini answers |
+| `data/interactions/*.csv` | simulated users and interactions |
 
 ---
 
-## 10. API (FastAPI, prefix `/api/v1`)
-
-| Method | Path | Purpose | Auth |
-|---|---|---|---|
-| POST | `/auth/signup`, `/auth/login` | Account + JWT | – |
-| GET/PUT | `/users/me/profile` | Preferences (brief's `POST /users/profile`) | ✔ |
-| GET/PUT | `/users/me/inventory` | Ingredient inventory | ✔ |
-| POST | `/ingredients/analyze` | Canonicalize + flag ingredients | ✔ |
-| POST | `/nutrition/calculate` | Nutrition for an ingredient list | – |
-| POST | `/recipes/generate` | Full agent workflow | ✔ |
-| POST | `/recipes/validate` | Validation report for a recipe | ✔ |
-| POST | `/recipes/revise` | Revise a recipe with instructions | ✔ |
-| GET | `/recipes/{id}`, `/users/me/history` | Retrieve | ✔ |
-| POST | `/meal-plans/generate` | N-day plan | ✔ |
-| POST | `/feedback` | like/dislike/rate/save/skip + reason | ✔ |
-| GET | `/health` | liveness + DB/vector store/model status | – |
-
-Errors: FastAPI's own `{"detail": ...}` shape everywhere - 422 for input that fails validation,
-503 when a dependency (Gemini key, recipe library) is missing, 500 with a fixed message for
-anything unexpected. Internal details and tracebacks only ever go to the logs.
-
-**Built so far** (Phases 13-14):
+## 10. API (FastAPI)
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| GET | `/health` | - | what is ready: recipes, ranking model, search index, LLM key |
-| POST | `/api/v1/auth/signup`, `/login` | - | bcrypt + JWT |
-| GET/PUT | `/api/v1/users/me/profile` | ✔ | saved diet, allergies, exclusions, targets |
-| GET/PUT | `/api/v1/users/me/inventory` | ✔ | what is at home |
-| POST | `/api/v1/users/me/feedback` | ✔ | like/dislike, for personalization |
-| POST | `/api/v1/recipes/generate` | optional | Scenario 1 |
-| POST | `/api/v1/plans/generate` | optional | Scenario 2 |
+| GET | `/health` | – | what is ready: recipes, ranking model, search index, LLM key |
+| POST | `/api/v1/auth/signup`, `/api/v1/auth/login` | – | account; returns a JWT |
+| GET/PUT | `/api/v1/users/me/profile` | required | saved diet, allergies, exclusions, targets |
+| GET/PUT | `/api/v1/users/me/inventory` | required | what is at home (PUT replaces the list) |
+| POST | `/api/v1/users/me/feedback` | required | like/dislike a recipe, with an optional reason |
+| POST | `/api/v1/recipes/generate` | optional | Scenario 1: free text → one checked recipe |
+| POST | `/api/v1/plans/generate` | optional | Scenario 2: N-day plan inside a budget |
+| GET | `/`, `/docs` | – | the website; the interactive API docs |
 
 The two `generate` endpoints accept a token but do not require one. When a token is present the
-saved profile is merged in with the union rule - saved allergies and exclusions are added to the
-request's, never replaced - so principle 2 ("safety is sticky") holds at the API boundary too.
+saved profile is merged in with the union rule — saved allergies and exclusions are added to the
+request's, never replaced — so principle 2 ("safety is sticky") holds at the API boundary too.
 
-Both endpoints are thin: validate with Pydantic, call a service
-(`app/services/recipe_service.py`, `app/services/planner.py`), return the result. The
-services are shared with the demo scripts, so the API and the command line run the same code.
+Both are thin: validate with Pydantic, call a service (`app/services/recipe_service.py`,
+`app/services/planner.py`), return the result. The demo script calls the same services, so the
+API and the command line run the same code.
+
+Errors use FastAPI's `{"detail": ...}` shape: 401 for a missing or bad token, 409 for an email
+already registered, 422 for input that fails validation, 503 when something is missing (Gemini
+key, recipe library) or the daily Gemini quota is used up, and 500 with a fixed message for
+anything unexpected. Tracebacks only go to the logs.
 
 ---
 
@@ -358,7 +352,7 @@ model file on disk. The plans chosen were identical before and after.
 | Recipe | Gemini calls before | after |
 |---|---|---|
 | First draft clean | 3 | 2 |
-| Unsafe, fixed in one rewrite | 5 | 4 |
+| Unsafe, fixed in one rewrite | 5 | 3 |
 
 What was slow, and what changed:
 
@@ -371,7 +365,8 @@ What was slow, and what changed:
 4. **Every request fetched its trace link** from LangSmith. Removed.
 5. **A busy Gemini meant up to 45 s of sleeping per call.** Retry waits are now 4 s then 8 s, and
    the answer cache replays finished steps for free.
-6. **The critic read drafts Python had already passed** (§5).
+6. **The critic read drafts Python had already passed**, and was a Gemini call at all (§5). It is
+   now plain Python.
 7. **Every Gemini call thought at "medium"** (the model's default). All calls now ask for `low`
    (`LLM_THINKING` in `.env`).
 8. **Answers came back as prose around JSON.** Every call now asks for `application/json` only.
@@ -427,7 +422,7 @@ Every file here is used; anything that stopped being used has been deleted.
 nutrichef-ai/
 ├── app/
 │   ├── api/          main.py (the app), routes.py, auth.py, users.py, schemas.py
-│   ├── agents/       prompts.py, agents.py (4 LLM agents), graph.py (LangGraph workflow),
+│   ├── agents/       prompts.py, agents.py (4 agents, 3 use Gemini), graph.py (LangGraph workflow),
 │   │                 schemas.py (the LLM output contract), rag.py (ChromaDB search)
 │   ├── core/         config.py, logging.py, llm.py, security.py, tracing.py
 │   ├── data/         usda.py, recipenlg.py, reference.py, recipes.py, features.py
@@ -473,6 +468,7 @@ recipenlg ────┴─> foods -> recipes -> nutrition -> tags -> index
 | 6 | Bearer JWT | Cookies (reference repo) | One token the browser sends on each call; no session store, no CSRF handling |
 | 7 | EC2 + compose, GHCR | ECS Fargate + ECR | Free-tier budget; ECS remains an upgrade path |
 | 8 | Synthetic interactions, clearly labeled | No ML until real users | Enables a genuine, evaluated model now |
+| 9 | Critic in Python; saved answers + temperature 0 | LLM critic; no cache | Same request, same result; one fewer Gemini call per rewrite |
 
 ---
 

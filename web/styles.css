@@ -500,10 +500,6 @@ label > input, label > select, label > .pillbox, label > .range-wrap { margin-to
 .method li { margin-bottom: .75rem; font-size: .96rem; }
 .method li::marker { font-family: var(--serif); font-weight: 700; color: var(--accent); }
 
-.how { margin-top: 1.6rem; border-top: 1px solid var(--line); padding-top: 1rem; }
-.how summary { cursor: pointer; font-size: .88rem; font-weight: 600; color: var(--ink-soft); }
-.how ol { margin: .8rem 0 0; padding-left: 1.2rem; font-size: .88rem; color: var(--ink-soft); }
-.how li { margin-bottom: .35rem; }
 
 .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; }
 .tile {

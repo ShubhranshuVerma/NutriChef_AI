@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NutriChef — meals that fit your life</title>
-<meta name="description" content="Tell us how you eat. We write the recipe and check every number.">
+<meta name="description" content="Recipes and weekly meal plans that fit your diet, allergies and budget.">
 <meta name="theme-color" content="#14452F">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -53,19 +53,18 @@
   <!-- hero -->
   <div class="hero">
     <div class="hero-copy">
-      <span class="eyebrow">Constraint-aware cooking</span>
+      <span class="eyebrow">Cooking made personal</span>
       <h1>Dinner that respects<br><em>every</em> rule you have.</h1>
       <p class="lede">Vegetarian, allergic to soy, ₹1,500 for the week, 25&nbsp;g of protein a
-        meal — say it in your own words. We write the recipe, then check every gram against a
-        food database before you see it.</p>
+        meal — say it in your own words and get a recipe that fits.</p>
       <div class="hero-actions">
         <button class="btn primary lg" data-go="recipe">Create a recipe</button>
         <button class="btn outline lg" data-go="plan">Plan my week</button>
       </div>
       <div class="hero-proof">
-        <div><strong id="statRecipes">3,100+</strong><span>recipes checked</span></div>
+        <div><strong id="statRecipes">3,100+</strong><span>recipes</span></div>
         <div><strong>10</strong><span>allergens tracked</span></div>
-        <div><strong>USDA</strong><span>nutrition data</span></div>
+        <div><strong>14</strong><span>days planned at once</span></div>
       </div>
     </div>
 
@@ -80,19 +79,19 @@
     </div>
   </div>
 
-  <!-- running strip of claims -->
+  <!-- running strip -->
   <div class="ticker" aria-hidden="true">
     <div class="ticker-run">
-      <span>Nutrition from USDA FoodData Central</span><i>◆</i>
-      <span>Every gram calculated, never guessed</span><i>◆</i>
-      <span>10 allergens matched whole-word</span><i>◆</i>
-      <span>Your budget in rupees, not vibes</span><i>◆</i>
+      <span>Vegetarian, vegan, Jain and more</span><i>◆</i>
+      <span>Your allergies, remembered</span><i>◆</i>
+      <span>Budgets in rupees</span><i>◆</i>
       <span>Uses what is already in your kitchen</span><i>◆</i>
-      <span>Nutrition from USDA FoodData Central</span><i>◆</i>
-      <span>Every gram calculated, never guessed</span><i>◆</i>
-      <span>10 allergens matched whole-word</span><i>◆</i>
-      <span>Your budget in rupees, not vibes</span><i>◆</i>
+      <span>Every quantity in grams</span><i>◆</i>
+      <span>Vegetarian, vegan, Jain and more</span><i>◆</i>
+      <span>Your allergies, remembered</span><i>◆</i>
+      <span>Budgets in rupees</span><i>◆</i>
       <span>Uses what is already in your kitchen</span><i>◆</i>
+      <span>Every quantity in grams</span><i>◆</i>
     </div>
   </div>
 
@@ -101,7 +100,7 @@
     <div class="band-head reveal">
       <span class="eyebrow">The idea</span>
       <h2 class="section-title">How it works</h2>
-      <p class="body center">Three steps, and the third one is the one nobody else does.</p>
+      <p class="body center">Three simple steps.</p>
     </div>
 
     <div class="steps">
@@ -111,7 +110,7 @@
           <span class="step-n">1</span>
           <h3>Say it plainly</h3>
           <p>“High-protein dinner under 600 calories, I’m vegetarian and allergic to soy.”
-            No forms to fight, no dropdown archaeology.</p>
+            </p>
         </div>
       </article>
 
@@ -130,8 +129,7 @@
         <div class="step-text">
           <span class="step-n">3</span>
           <h3>Then we check it</h3>
-          <p>Calories, protein, cost and every allergen are <em>calculated</em> — not guessed.
-            If it breaks one of your rules, you are told before you cook.</p>
+          <p>You see the calories, protein, cost and allergens for every serving. If something doesn't fit your rules, you are told before you cook.</p>
         </div>
       </article>
     </div>
@@ -142,7 +140,7 @@
     <div class="band-head reveal">
       <span class="eyebrow">Tonight’s options</span>
       <h2 class="section-title">Food first, numbers second</h2>
-      <p class="body center">Every plate below passed the same checks yours will.</p>
+      <p class="body center">A taste of what you can ask for.</p>
     </div>
     <div class="gallery" id="gallery"></div>
   </div>
@@ -156,9 +154,9 @@
         <p class="body">Save them once. From then on they are added to every request you
           make — a recipe can never quietly drop one, no matter how you word it.</p>
         <ul class="ticks">
-          <li>Whole-word matching, so “eggplant” never counts as “egg”</li>
-          <li>Knows that coconut milk is not milk</li>
-          <li>An ingredient we cannot identify blocks the recipe</li>
+          <li>Added to every recipe and meal plan automatically</li>
+          <li>Meals containing them are left out</li>
+          <li>Still check labels — we can’t guarantee allergy safety</li>
         </ul>
         <button class="btn primary" data-go="kitchen">Set up my kitchen</button>
       </div>
@@ -191,7 +189,7 @@
     <div class="page-head-inner">
       <span class="eyebrow light">One meal</span>
       <h1>What are you in the mood for?</h1>
-      <p class="lede">Describe the meal. We will write it and check the numbers.</p>
+      <p class="lede">Describe the meal and we will write it for you.</p>
     </div>
   </div>
 
@@ -275,7 +273,7 @@
         </svg>
         <span>NutriChef</span>
       </span>
-      <p>Meals that respect every rule you have — written by a model, checked by Python.</p>
+      <p>Recipes and meal plans that fit how you eat.</p>
     </div>
     <nav class="foot-links">
       <a href="#" data-go="recipe">Create a recipe</a>
@@ -286,8 +284,7 @@
   <p class="foot-note">Nutrition and prices are estimates. NutriChef is a general wellness tool —
     not medical advice — and it cannot guarantee allergy safety. Always check ingredient labels
     and cross-contamination risks yourself.</p>
-  <p class="tiny">Nutrition from USDA FoodData Central · Photography from Pexels ·
-    Recipes checked in Python, not guessed</p>
+  <p class="tiny">Photos from Pexels</p>
 </footer>
 
 <!-- ======================= auth ======================= -->

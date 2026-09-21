@@ -12,8 +12,8 @@ from app.agents import agents, graph, rag
 from app.agents.schemas import Constraints, RecipeDraft
 from app.core.llm import CachedLLM, FakeLLM, QuotaExhausted, answer_text, invoke_with_retry
 from app.nutrition.checks import load_rules
-from tests.helpers import (GOOD_RECIPE, HAS_PROBLEMS, LOW_PROTEIN, NO_PROBLEMS, REQUIREMENTS,
-                           SOY_BUT_OTHERWISE_FINE, TOFU_RECIPE, recipe_tables)
+from tests.helpers import (GOOD_RECIPE, LOW_PROTEIN, REQUIREMENTS, SOY_BUT_OTHERWISE_FINE,
+                           TOFU_RECIPE, recipe_tables)
 
 
 def run(replies, profile=None, search=None):
@@ -70,32 +70,43 @@ def test_a_clean_first_draft_takes_two_gemini_calls():
     assert state["status"] == "ok"
     assert [s["step"] for s in state["trace"]] == ["understand", "search", "write", "check",
                                                    "finish"]
-    assert len(llm.prompts) == 2           # the critic is not asked about a clean draft
+    assert len(llm.prompts) == 2           # read the request, write the recipe
 
 
 def test_an_unsafe_draft_is_rewritten_until_it_passes():
-    state, _ = run([REQUIREMENTS, TOFU_RECIPE, HAS_PROBLEMS, GOOD_RECIPE])
+    state, llm = run([REQUIREMENTS, TOFU_RECIPE, GOOD_RECIPE])
     assert state["revisions"] == 1
     assert state["status"] == "ok"
     assert "soy" not in state["recipe"]["allergens"]
+    assert len(llm.prompts) == 3           # the critic is Python, so it costs no call
+    assert "contains soy" in llm.prompts[2]  # the rewrite is told what to fix
+
+
+def test_the_critic_gives_the_same_answer_every_time():
+    checks = {"passed": False, "failures": ["contains soy"],
+              "warnings": ["only 12 g protein per serving"]}
+    first = agents.critique_recipe(checks)
+    assert first == agents.critique_recipe(checks)
+    assert first.problems == ["contains soy", "only 12 g protein per serving"]
+    assert len(first.suggestions) == 2
 
 
 def test_breaking_a_hard_rule_always_goes_to_the_critic():
     """Soy with no other problem, so no warnings: it must still be rewritten."""
-    state, _ = run([REQUIREMENTS, SOY_BUT_OTHERWISE_FINE, HAS_PROBLEMS, GOOD_RECIPE])
+    state, _ = run([REQUIREMENTS, SOY_BUT_OTHERWISE_FINE, GOOD_RECIPE])
     assert "critique" in [s["step"] for s in state["trace"]]
     assert state["status"] == "ok"
 
 
-def test_a_draft_short_on_protein_still_gets_the_critic():
-    state, _ = run([REQUIREMENTS, LOW_PROTEIN, NO_PROBLEMS])
-    assert state["checks"]["passed"] is True
-    assert state["checks"]["warnings"]
+def test_a_draft_short_on_protein_is_rewritten_too():
+    state, _ = run([REQUIREMENTS, LOW_PROTEIN, GOOD_RECIPE])
     assert "critique" in [s["step"] for s in state["trace"]]
+    assert state["revisions"] == 1
+    assert state["status"] == "ok"
 
 
 def test_it_gives_up_after_two_rewrites_and_says_so():
-    state, _ = run([REQUIREMENTS] + [TOFU_RECIPE, HAS_PROBLEMS] * 3)
+    state, _ = run([REQUIREMENTS] + [TOFU_RECIPE] * 3)
     assert state["revisions"] == graph.MAX_REVISIONS
     assert state["status"] == "failed"
 
@@ -107,7 +118,7 @@ def test_nutrition_comes_from_the_calculator_not_the_llm():
 
 
 def test_a_saved_allergy_fails_a_recipe_the_request_never_mentioned():
-    state, _ = run([REQUIREMENTS] + [GOOD_RECIPE, NO_PROBLEMS] * 3,
+    state, _ = run([REQUIREMENTS] + [GOOD_RECIPE] * 3,
                    profile={"allergies": ["milk"]})
     assert state["constraints"].allergies == ["milk", "soy"]
     assert state["status"] == "failed"                   # paneer is milk
@@ -128,6 +139,31 @@ def test_a_repeated_prompt_is_answered_from_the_cache(tmp_path):
     llm = CachedLLM(fake, "test-model", tmp_path)
     assert answer_text(llm.invoke("dinner?")) == answer_text(llm.invoke("dinner?")) == "the answer"
     assert len(fake.prompts) == 1
+
+
+def test_the_same_request_always_gives_the_same_recipe(tmp_path):
+    """Gemini would answer differently the second time; the saved answer wins."""
+    other = GOOD_RECIPE.replace("Paneer Egg Bhurji", "Something Else")
+    fake = FakeLLM([REQUIREMENTS, GOOD_RECIPE, REQUIREMENTS, other])
+    deps = {"llm": CachedLLM(fake, "test-model", tmp_path), "tables": recipe_tables(),
+            "rules": load_rules(), "search_recipes": None}
+    first = graph.run("vegetarian, allergic to soy...", deps)
+    second = graph.run("vegetarian, allergic to soy...", deps)
+    assert first["recipe"]["title"] == second["recipe"]["title"] == "Paneer Egg Bhurji"
+    assert first["checks"] == second["checks"]
+    assert len(fake.prompts) == 2          # the second run never reached Gemini
+
+
+def test_gemini_is_asked_for_its_most_likely_answer(monkeypatch):
+    from app.core.config import get_settings
+    from app.core.llm import get_llm
+
+    monkeypatch.setenv("GOOGLE_API_KEY", "fake-key-for-this-test")
+    get_settings.cache_clear()
+    llm = get_llm(cache=False)
+    get_settings.cache_clear()
+    assert llm.temperature == 0
+    assert llm.seed == 42
 
 
 def test_a_busy_gemini_is_retried(monkeypatch):

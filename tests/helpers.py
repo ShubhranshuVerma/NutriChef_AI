@@ -91,5 +91,3 @@ LOW_PROTEIN = json.dumps({            # passes every hard rule, misses the prote
     "ingredients": ["50 g paneer", "80 g onion", "10 g oil"],
     "steps": ["Toss everything together."], "notes": "",
 })
-NO_PROBLEMS = json.dumps({"problems": [], "suggestions": []})
-HAS_PROBLEMS = json.dumps({"problems": ["uses soy"], "suggestions": ["use paneer instead"]})

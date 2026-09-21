@@ -35,10 +35,9 @@ class Settings(BaseSettings):
     # ---------- LLM ----------
     google_api_key: SecretStr | None = None
     gemini_model: str = "gemini-3.8-flash"
-    llm_temperature: float = Field(default=0.3, ge=0.0, le=2.0)
     llm_timeout_seconds: int = Field(default=60, gt=0)
     llm_max_retries: int = Field(default=2, ge=0, le=5)
-    llm_cache: bool = True  # cache answers on disk; the free tier allows very few
+    llm_cache: bool = True  # reuse saved answers: same prompt -> same answer, and saves quota
     # How hard Gemini 3 models think before answering. Thinking happens before the
     # first word of the reply, so it is pure waiting; gemini-3.5-flash defaults to
     # "medium". Empty = send nothing, for models without thinking levels.

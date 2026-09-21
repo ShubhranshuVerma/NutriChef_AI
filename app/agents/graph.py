@@ -2,8 +2,8 @@
 
 understand -> search -> write -> check -> (clean? finish : critique -> revise -> check ...)
 
-The LLM writes and critiques. Nutrition and the safety checks are calculated in
-Python, and a recipe that breaks a hard rule is never returned as "ok".
+The LLM writes and rewrites. Nutrition, the safety checks and the critique are
+plain Python, and a recipe that breaks a hard rule is never returned as "ok".
 """
 
 import time
@@ -107,12 +107,7 @@ def make_nodes(deps):
         return state
 
     def critique(state):
-        report = {"per_serving": state["nutrition"]["per_serving"],
-                  "confidence": state["nutrition"]["confidence"],
-                  "failures": state["checks"]["failures"],
-                  "warnings": state["checks"]["warnings"]}
-        state["critique"] = agents.critique_recipe(state["constraints"], state["recipe"],
-                                                   report, llm)
+        state["critique"] = agents.critique_recipe(state["checks"])
         note(state, "critique", "; ".join(state["critique"].problems) or "no problems")
         return state
 
@@ -133,17 +128,7 @@ def make_nodes(deps):
 
 
 def needs_critique(state):
-    """Only ask the critic when Python found something to fix.
-
-    A draft that passes every hard rule and raises no warning goes straight to
-    finish. The critic used to read it anyway - one more Gemini call, a third of
-    a clean run's time - and, when it found a stylistic nitpick, could send a
-    recipe that was already fine through two rewrites and two more critiques.
-
-    "Clean" includes the soft rules. A draft short of the protein target still
-    passes, but it is exactly what the critic and a revision are for, so it
-    keeps going round the loop.
-    """
+    """A draft that passes every rule with no warnings is finished; anything else is fixed."""
     checks = state["checks"]
     if checks["passed"] and not checks["warnings"]:
         return "finish"
@@ -152,8 +137,7 @@ def needs_critique(state):
 
 def needs_revision(state):
     """Decide what happens after the critic: revise again, or stop."""
-    problems = state["critique"].problems or state["checks"]["failures"]
-    if problems and state["revisions"] < MAX_REVISIONS:
+    if state["critique"].problems and state["revisions"] < MAX_REVISIONS:
         return "revise"
     return "finish"
 

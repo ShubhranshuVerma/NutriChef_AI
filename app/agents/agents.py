@@ -1,7 +1,7 @@
-"""The four LLM agents. Each one is a function: build a prompt, call the LLM,
-check the answer with Pydantic.
+"""The four agents. Three are LLM calls: build a prompt, call Gemini, check the answer
+with Pydantic. The critic is plain Python, built from our own check results.
 
-Nothing here decides what is safe - that is the job of app/validation.
+Nothing here decides what is safe - that is the job of app/nutrition/checks.py.
 """
 
 import json
@@ -90,15 +90,37 @@ def generate_recipe(constraints, context, llm):
     return ask(llm, prompt, RecipeDraft)
 
 
-# ---------- 3. critic ----------
+# ---------- 3. critic (plain Python, no LLM) ----------
 
-def critique_recipe(constraints, recipe, report, llm):
-    prompt = prompts.CRITIC_PROMPT.format(
-        constraints=describe_constraints(constraints),
-        recipe=describe_recipe(recipe),
-        report=json.dumps(report, indent=2, default=str),
-    )
-    return ask(llm, prompt, Critique)
+# How to fix each kind of problem the checks report. The first words of the
+# problem pick the advice.
+FIXES = [
+    ("contains excluded ingredient", "Remove that ingredient completely."),
+    ("contains", "Remove every ingredient with this allergen and use a safe substitute."),
+    ("not ", "Replace the ingredients that break the diet."),
+    ("kcal is above", "Use smaller amounts, especially of oil, ghee, butter, cream and sugar."),
+    ("costs about", "Swap the most expensive ingredient for a cheaper one."),
+    ("nutrition confidence", "Use common ingredient names, each with a quantity in grams."),
+    ("nutrition numbers look wrong", "Check every quantity; the amounts do not add up."),
+    ("only", "Add more of a protein-rich ingredient the person can eat."),
+    ("takes about", "Use a quicker method or fewer steps."),
+    ("cuisine is", "Change the spices and dish style to the cuisine asked for."),
+]
+
+
+def critique_recipe(checks):
+    """What is wrong and how to fix it, built from our own check results.
+
+    No LLM: the same check results always give the same critique.
+    """
+    problems = checks["failures"] + checks["warnings"]
+    suggestions = []
+    for problem in problems:
+        for start, fix in FIXES:
+            if problem.startswith(start):
+                suggestions.append(f"{problem}: {fix}")
+                break
+    return Critique(problems=problems, suggestions=suggestions)
 
 
 # ---------- 4. revision ----------

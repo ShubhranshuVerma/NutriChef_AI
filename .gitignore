@@ -30,8 +30,11 @@ data/raw/*
 data/processed/*
 data/interactions/*
 !data/**/.gitkeep
-# RecipeNLG is non-commercial & must not be redistributed
-**/RecipeNLG*
+# RecipeNLG is non-commercial & must not be redistributed. Name the dataset files
+# exactly: macOS ignores upper/lower case, so a pattern like RecipeNLG* would also
+# hide our own code (app/data/recipenlg.py).
+**/RecipeNLG_dataset.csv
+**/RecipeNLG/
 **/full_dataset.csv
 
 # ---------- Runtime state ----------

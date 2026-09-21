@@ -20,7 +20,8 @@ htmlcov
 data/raw
 data/processed
 data/interactions
-**/RecipeNLG*
+**/RecipeNLG_dataset.csv
+**/RecipeNLG/
 **/full_dataset.csv
 ml/artifacts
 mlflow.db

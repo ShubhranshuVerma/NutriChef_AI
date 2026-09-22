@@ -609,6 +609,12 @@ tr.bought { opacity: .45; text-decoration: line-through; }
 }
 .kitchen-grid .panel { padding: 1.8rem; }
 .kitchen-grid h3 { color: var(--brand); margin-bottom: .4rem; }
+.kitchen-grid .danger-zone { grid-column: 1 / -1; border-color: rgba(179, 38, 30, .35); }
+.kitchen-grid .danger-zone h3 { color: var(--bad); }
+.confirm-row { display: grid; grid-template-columns: minmax(0, 320px) auto; gap: .6rem;
+  align-items: end; justify-content: start; margin-top: 1rem; }
+.btn.danger { border-color: var(--bad); color: var(--bad); }
+.btn.danger:hover { background: var(--bad); color: #fff; }
 
 .pantry { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1.2rem 0; }
 .pantry-item {
@@ -748,6 +754,7 @@ tr.bought { opacity: .45; text-decoration: line-through; }
   .controls .wide { grid-column: span 1; }
   .add-row { grid-template-columns: 1fr 1fr; }
   .add-row .btn { grid-column: span 2; }
+  .confirm-row { grid-template-columns: 1fr; }
   .result { padding-top: 1.6rem; }
   .list { font-size: .85rem; }
   .toasts { left: 1rem; right: 1rem; }

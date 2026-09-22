@@ -117,5 +117,10 @@ class Health(BaseModel):
     llm_configured: bool
 
 
+class PasswordCheck(BaseModel):
+    """Asked again before something that cannot be undone."""
+    password: str = Field(min_length=1, max_length=72)
+
+
 class Error(BaseModel):
     detail: str

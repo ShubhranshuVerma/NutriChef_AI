@@ -167,7 +167,7 @@ The endpoint list is in *Architecture (v2)*, section 10.
 | FR-9 | Unknown diets and allergens are dropped, not stored | Met |
 | FR-10 | A signed-in user can read and replace their inventory (ingredient, grams, days to expiry) | Met |
 | FR-11 | A signed-in user can like or dislike a recipe, with an optional reason | Met |
-| FR-12 | A user can delete their account and all their data | **Not yet** |
+| FR-12 | A user can delete their account and all their data (profile, kitchen, likes), after typing their password again | Met |
 
 ### 4.3 Recipe generation (Scenario 1)
 
@@ -263,7 +263,7 @@ The endpoint list is in *Architecture (v2)*, section 10.
 | NFR-12 | Every input has size and range limits (text ≤ 1,000 chars, days ≤ 14, ≤ 10 allergies, ≤ 100 inventory items …) | Met |
 | NFR-13 | Prompt injection: the person's words reach the LLM only fenced as data (and cannot close the fence), the hard limits are read by Python, all LLM output is schema-validated, and safety does not depend on the LLM | Met |
 | NFR-14 | Only minimal personal data is stored: email, password hash, profile, inventory, feedback | Met |
-| NFR-15 | A per-user rate limit on the LLM endpoints | **Not yet** |
+| NFR-15 | A per-user rate limit on the LLM endpoints: `RECIPE_REQUESTS_PER_HOUR` (default 20) per account, or per address when signed out; over it, a clear 429 saying when to try again | Met |
 
 ### 5.4 Responsible AI
 
@@ -313,6 +313,8 @@ All tests are in `tests/`. Run with `python -m pytest -q`.
 | NFR-5, NFR-6, NFR-8, NFR-12 | `test_api.py`: `test_a_used_up_quota_is_a_clear_503`, `test_no_gemini_key_is_a_clear_503`, `test_our_errors_never_leak_to_the_caller`, `test_bad_recipe_requests_are_rejected` |
 | NFR-10, NFR-11 | `test_auth.py`: `test_the_gemini_key_is_never_printed`, `test_production_refuses_the_placeholder_jwt_secret` |
 | NFR-16 | `test_planner.py`: `test_every_plan_carries_the_disclaimer` |
+| FR-12 | `test_auth.py`: `test_deleting_the_account_removes_everything_saved`, `test_deleting_needs_the_password_again`, `test_deleting_one_account_leaves_the_others`, `test_deleting_needs_a_sign_in` |
+| NFR-15 | `test_api.py`: `test_too_many_recipe_requests_get_a_clear_429`, `test_the_limit_resets_after_an_hour`, `test_each_person_has_their_own_limit`, `test_zero_means_no_limit`, `test_meal_plans_are_not_limited` |
 
 ---
 
@@ -320,6 +322,4 @@ All tests are in `tests/`. Run with `python -m pytest -q`.
 
 | Item | Requirement | Planned |
 |---|---|---|
-| Account deletion endpoint | FR-12 | Phase 22 (hardening) |
-| Per-user rate limit on LLM endpoints | NFR-15 | Phase 22 (hardening) |
 | Use the guidance collection in the recipe workflow | — | Optional |

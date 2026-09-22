@@ -131,6 +131,7 @@ const explain = (error) => {
   if (text.includes('sign in')) return TROUBLE.auth;
   if (text.includes('already registered')) return 'That email already has an account — sign in instead.';
   if (text.includes('wrong email')) return 'That email and password do not match.';
+  if (text.includes('wrong password')) return 'That password is not right.';
   return text.length && text.length < 110 ? say(error.message || error) : TROUBLE.generic;
 };
 
@@ -174,6 +175,7 @@ const api = {
   saveKitchen: (items) => call('PUT', '/api/v1/users/me/inventory', items),
   recipe: (body) => call('POST', '/api/v1/recipes/generate', body),
   plan: (body) => call('POST', '/api/v1/plans/generate', body),
+  deleteAccount: (password) => call('DELETE', '/api/v1/users/me', { password }),
   feedback: (recipeId, liked) =>
     call('POST', '/api/v1/users/me/feedback', { recipe_id: recipeId.slice(0, 64), liked }),
 };
@@ -199,6 +201,12 @@ function toast(message, bad) {
 }
 
 function signedIn() { return Boolean(state.token); }
+
+function forgetSignIn() {
+  state.token = state.email = null;
+  localStorage.removeItem('nc_token'); localStorage.removeItem('nc_email');
+  paintAccount();
+}
 
 function paintAccount() {
   $('who').hidden = !signedIn();
@@ -537,6 +545,14 @@ async function renderKitchen() {
         <label>Days left <input id="pDays" type="number" min="0" placeholder="3"></label>
         <button class="btn outline" id="pAdd">Add</button>
       </div>
+    </div>
+    <div class="panel danger-zone"><h3>Delete my account</h3>
+      <p class="muted">This removes your account, your saved preferences, your kitchen and
+        your likes for good. It cannot be undone.</p>
+      <div class="confirm-row">
+        <label>Your password <input id="dPassword" type="password" autocomplete="current-password"></label>
+        <button class="btn danger" id="dDelete">Delete my account</button>
+      </div>
     </div></div>`;
 
   fillDiets($('kDiet'));
@@ -561,6 +577,8 @@ async function renderKitchen() {
     } catch (error) { toast(explain(error), true); }
   };
 
+  $('dDelete').onclick = deleteAccount;
+
   paintPantry();
   $('pAdd').onclick = async () => {
     const name = $('pName').value.trim().toLowerCase().replace(/\s+/g, '_');
@@ -573,6 +591,18 @@ async function renderKitchen() {
     $('pName').value = $('pGrams').value = $('pDays').value = '';
     await savePantry();
   };
+}
+
+async function deleteAccount() {
+  const password = $('dPassword').value;
+  if (!password) { toast('Type your password first.', true); return; }
+  if (!confirm('Delete your account and everything saved with it? This cannot be undone.')) return;
+  try {
+    await api.deleteAccount(password);
+    forgetSignIn();
+    go('home');
+    toast('Your account and everything saved with it have been deleted.');
+  } catch (error) { toast(explain(error), true); }
 }
 
 function paintPantry() {
@@ -700,11 +730,7 @@ function start() {
   $('planProtein').oninput = (event) => { $('planProteinOut').textContent = event.target.value + ' g'; };
 
   $('signInBtn').onclick = () => openAuth('login');
-  $('signOutBtn').onclick = () => {
-    state.token = state.email = null;
-    localStorage.removeItem('nc_token'); localStorage.removeItem('nc_email');
-    paintAccount(); go('home'); toast('Signed out.');
-  };
+  $('signOutBtn').onclick = () => { forgetSignIn(); go('home'); toast('Signed out.'); };
   $('authClose').onclick = () => { $('authModal').hidden = true; };
   $('authModal').onclick = (event) => {
     if (event.target === $('authModal')) $('authModal').hidden = true;

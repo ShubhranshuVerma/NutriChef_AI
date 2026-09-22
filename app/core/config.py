@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     # first word of the reply, so it is pure waiting; gemini-3.5-flash defaults to
     # "medium". Empty = send nothing, for models without thinking levels.
     llm_thinking: Literal["minimal", "low", "medium", "high"] | None = "low"
+    # Recipe requests one person may make in an hour, so nobody can use up the whole
+    # Gemini quota. 0 = no limit.
+    recipe_requests_per_hour: int = Field(default=20, ge=0, le=1000)
 
     # ---------- LangSmith (tracing) ----------
     langsmith_api_key: SecretStr | None = None

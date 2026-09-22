@@ -15,6 +15,7 @@ from app.api.main import create_app
 from app.core import security
 from app.core.config import Settings, get_settings
 from app.database import session as db
+from app.database.models import Feedback, InventoryItem, Profile, User
 
 ACCOUNT = {"email": "Meena@Example.com", "password": "a-good-password"}
 
@@ -156,6 +157,54 @@ def test_likes_and_dislikes_reach_the_planner(client, monkeypatch):
 
     client.post("/api/v1/plans/generate", headers=headers, json={"days": 2})
     assert seen["feedback"] == {"liked": ["r1"], "disliked": ["r2"]}
+
+
+# ---------- deleting the account ----------
+
+def delete_account(client, headers, password=ACCOUNT["password"]):
+    return client.request("DELETE", "/api/v1/users/me", headers=headers,
+                          json={"password": password})
+
+
+def test_deleting_the_account_removes_everything_saved(client):
+    headers = sign_up(client)
+    client.put("/api/v1/users/me/profile", headers=headers, json={"allergies": ["soy"]})
+    client.put("/api/v1/users/me/inventory", headers=headers,
+               json=[{"ingredient_id": "paneer", "grams": 400}])
+    client.post("/api/v1/users/me/feedback", headers=headers, json={"recipe_id": "r1", "liked": True})
+
+    assert delete_account(client, headers).status_code == 204
+
+    sessions = db.get_session()
+    session = next(sessions)
+    for table in [User, Profile, InventoryItem, Feedback]:
+        assert session.query(table).count() == 0, table.__name__
+    sessions.close()
+    # the old token no longer opens anything, and the email can sign up again
+    assert client.get("/api/v1/users/me/profile", headers=headers).status_code == 401
+    assert client.post("/api/v1/auth/login", json=ACCOUNT).status_code == 401
+    sign_up(client)
+
+
+def test_deleting_needs_the_password_again(client):
+    """A token left behind on a shared computer must not be enough."""
+    headers = sign_up(client)
+    assert delete_account(client, headers, password="wrong-password").status_code == 401
+    assert client.get("/api/v1/users/me/profile", headers=headers).status_code == 200
+
+
+def test_deleting_one_account_leaves_the_others(client):
+    mine = sign_up(client)
+    theirs = sign_up(client, {"email": "other@example.com", "password": "another-password"})
+    client.put("/api/v1/users/me/profile", headers=theirs, json={"allergies": ["peanut"]})
+
+    assert delete_account(client, mine).status_code == 204
+    assert client.get("/api/v1/users/me/profile", headers=theirs).json()["allergies"] == ["peanut"]
+
+
+def test_deleting_needs_a_sign_in(client):
+    assert client.request("DELETE", "/api/v1/users/me",
+                          json={"password": "whatever-it-is"}).status_code == 401
 
 
 # ---------- secrets ----------

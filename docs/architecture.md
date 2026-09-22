@@ -420,10 +420,10 @@ step's seconds. Compare the revision count too — if the writer misses targets 
 - Secrets only in `.env` (git-ignored); `.env.example` committed. `pydantic-settings` fails fast if missing.
 - JWT bearer tokens (the website keeps one in the browser), bcrypt hashes, 60-minute expiry.
 - Pydantic limits on every input (text length, days ≤ 14, budget > 0, list sizes …).
-- Free-tier quota is protected by the answer cache and by not retrying a 429. There is no per-user rate limit yet (a Phase 22 hardening item).
+- Free-tier quota is protected by the answer cache, by not retrying a 429, and by an hourly limit on recipe requests per person (`app/api/limits.py`: `RECIPE_REQUESTS_PER_HOUR`, default 20, counted in memory per account or per address when signed out; over it, a 429 with `Retry-After`). Meal plans never call Gemini, so they are not limited.
 - Prompt injection: the person's words reach Gemini only inside `<<< >>>`, marked as data, with any `<<<`/`>>>` in them removed so they cannot close the fence; the hard limits come separately from the Python Requirement Agent; all LLM output is schema-validated; safety is deterministic anyway.
 - Disclaimers in every recipe/plan response and in the UI.
-- Minimal personal data: email, password hash, profile, inventory, feedback. Account deletion is not built yet (Phase 22).
+- Minimal personal data: email, password hash, profile, inventory, feedback. `DELETE /api/v1/users/me` (with the password typed again) deletes the account and, by cascade, everything saved with it; the website offers it on the My kitchen page.
 
 ---
 
@@ -491,7 +491,7 @@ Every file here is used; anything that stopped being used has been deleted.
 ```text
 nutrichef-ai/
 ├── app/
-│   ├── api/          main.py (the app), routes.py, auth.py, users.py, schemas.py
+│   ├── api/          main.py (the app), routes.py, auth.py, users.py, schemas.py, limits.py (hourly recipe limit)
 │   ├── agents/       prompts.py, agents.py (write, critique, revise), requirements.py (reads the request),
 │   │                 graph.py (LangGraph workflow),
 │   │                 schemas.py (the LLM output contract), rag.py (ChromaDB search)

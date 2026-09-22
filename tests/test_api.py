@@ -1,10 +1,12 @@
 """The API and the website it serves. The services are replaced with fakes."""
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from app.api import routes
+from app.api import limits, routes
 from app.api.main import create_app
+from app.core.config import get_settings
 from app.core.llm import QuotaExhausted
 
 FAKE_RECIPE = {"status": "ok", "recipe": {"title": "Paneer Bhurji"}, "checks": {"passed": True}}
@@ -147,3 +149,61 @@ def test_warm_up_never_stops_the_app_from_starting(monkeypatch):
     monkeypatch.setattr(recipe_service, "load_dependencies", missing)
     monkeypatch.setenv("WARM_UP", "true")
     assert main.create_app() is not None
+
+
+# ---------- the hourly limit on recipe requests ----------
+
+def ask_for_recipes(client, monkeypatch, times, headers=None):
+    monkeypatch.setattr(routes.recipe_service, "generate_recipe",
+                        lambda request_text, profile=None, deps=None: FAKE_RECIPE)
+    return [client.post("/api/v1/recipes/generate", headers=headers or {},
+                        json={"request": "paneer dinner"}).status_code for _ in range(times)]
+
+
+def test_too_many_recipe_requests_get_a_clear_429(client, ready, monkeypatch):
+    monkeypatch.setenv("RECIPE_REQUESTS_PER_HOUR", "3")
+    get_settings.cache_clear()
+    assert ask_for_recipes(client, monkeypatch, 4) == [200, 200, 200, 429]
+
+    response = client.post("/api/v1/recipes/generate", json={"request": "paneer dinner"})
+    assert "3 recipes in the last hour" in response.json()["detail"]
+    assert int(response.headers["Retry-After"]) > 0
+
+
+def test_the_limit_resets_after_an_hour(client, ready, monkeypatch):
+    monkeypatch.setenv("RECIPE_REQUESTS_PER_HOUR", "1")
+    get_settings.cache_clear()
+    clock = [1_000_000.0]
+    monkeypatch.setattr(limits.time, "time", lambda: clock[0])
+    assert ask_for_recipes(client, monkeypatch, 2) == [200, 429]
+    clock[0] += limits.WINDOW_SECONDS + 1
+    assert ask_for_recipes(client, monkeypatch, 1) == [200]
+
+
+def test_each_person_has_their_own_limit(ready, monkeypatch):
+    monkeypatch.setenv("RECIPE_REQUESTS_PER_HOUR", "1")
+    get_settings.cache_clear()
+    class Someone:
+        def __init__(self, id):
+            self.id = id
+    class Request:
+        client = None
+    limits.check_recipe_limit(Request(), Someone(1))
+    limits.check_recipe_limit(Request(), Someone(2))       # a different account: fine
+    with pytest.raises(HTTPException):
+        limits.check_recipe_limit(Request(), Someone(1))
+
+
+def test_zero_means_no_limit(client, ready, monkeypatch):
+    monkeypatch.setenv("RECIPE_REQUESTS_PER_HOUR", "0")
+    get_settings.cache_clear()
+    assert set(ask_for_recipes(client, monkeypatch, 25)) == {200}
+
+
+def test_meal_plans_are_not_limited(client, ready, monkeypatch):
+    """Plans never call Gemini, so they cost nothing to repeat."""
+    monkeypatch.setenv("RECIPE_REQUESTS_PER_HOUR", "1")
+    get_settings.cache_clear()
+    monkeypatch.setattr(routes.planner, "make_plan", lambda *a, **k: FAKE_PLAN)
+    codes = {client.post("/api/v1/plans/generate", json={"days": 1}).status_code for _ in range(3)}
+    assert codes == {200}

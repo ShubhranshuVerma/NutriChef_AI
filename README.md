@@ -51,7 +51,7 @@ pytest
 pytest --cov=app --cov-report=term-missing  # coverage, and which lines are missing
 ```
 
-About 110 tests, one file per part of the project, in `tests/`. Gemini is replaced with a fake
+About 120 tests, one file per part of the project, in `tests/`. Gemini is replaced with a fake
 that returns scripted replies, so the suite is free, offline and takes a few seconds. Three
 nutrition tests check against your real USDA table and are skipped until it is built.
 
@@ -137,12 +137,16 @@ still works.
 | GET/PUT | `/api/v1/users/me/profile` | saved diet, allergies, exclusions, targets |
 | GET/PUT | `/api/v1/users/me/inventory` | what you have at home |
 | POST | `/api/v1/users/me/feedback` | like/dislike a recipe |
+| DELETE | `/api/v1/users/me` | delete the account and everything saved (password required) |
 | POST | `/api/v1/recipes/generate` | Scenario 1 — free text → one checked recipe |
 | POST | `/api/v1/plans/generate` | Scenario 2 — meal plan in a budget, using your inventory |
 
 Both `generate` endpoints work with or without a token. With one, your saved allergies and
 exclusions are **added** to whatever the request asks for — a request can never remove them —
 and your saved inventory is used when the request does not send one.
+
+Recipe requests are limited to `RECIPE_REQUESTS_PER_HOUR` (default 20) per person, so nobody
+can use up the whole Gemini quota; meal plans are not limited because they never call Gemini.
 
 ## Run it in Docker
 

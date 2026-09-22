@@ -2,11 +2,12 @@
 
 import pytest
 
+from app.api import limits
 from app.core.config import Settings, get_settings
 
 YOUR_SETTINGS = ["ENVIRONMENT", "LOG_LEVEL", "GOOGLE_API_KEY", "GEMINI_MODEL", "JWT_SECRET_KEY",
                  "DATABASE_URL", "EMBEDDING_MODEL", "LANGSMITH_API_KEY", "LLM_CACHE",
-                 "LLM_THINKING"]
+                 "LLM_THINKING", "RECIPE_REQUESTS_PER_HOUR"]
 
 
 @pytest.fixture(autouse=True)
@@ -18,5 +19,6 @@ def clean_settings(monkeypatch):
     monkeypatch.setenv("ENVIRONMENT", "test")
     monkeypatch.setenv("LANGSMITH_TRACING", "false")   # never send test runs to LangSmith
     get_settings.cache_clear()
+    limits.recent.clear()                               # every test starts with no requests counted
     yield
     get_settings.cache_clear()

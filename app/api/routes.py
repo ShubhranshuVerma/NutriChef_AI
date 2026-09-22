@@ -4,10 +4,11 @@ Nothing is decided here - the services own the logic, and the deterministic
 checks inside them own what is safe.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.api import schemas
 from app.api.auth import current_user
+from app.api.limits import check_recipe_limit
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.ml.ranker import MODEL_PATH
@@ -56,11 +57,13 @@ def merge(request: dict, profile: dict | None) -> dict:
     return merged
 
 
-@router.post("/recipes/generate", responses={503: {"model": schemas.Error}})
-def generate_recipe(body: schemas.RecipeRequest, user=Depends(current_user)):
+@router.post("/recipes/generate", responses={429: {"model": schemas.Error},
+                                             503: {"model": schemas.Error}})
+def generate_recipe(body: schemas.RecipeRequest, request: Request, user=Depends(current_user)):
     """Scenario 1: free text -> one recipe, checked by Python."""
     needs_llm()
     needs_data()
+    check_recipe_limit(request, user)
     profile = body.profile()
     saved = saved_profile(user)
     if saved:

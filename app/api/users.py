@@ -1,10 +1,11 @@
-"""The logged-in user's profile, inventory and feedback."""
+"""The logged-in user's profile, inventory and feedback - and deleting all of it."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.api import schemas
 from app.api.auth import require_user
+from app.core.security import verify_password
 from app.database.models import Feedback, InventoryItem, Profile, join
 from app.database.session import get_session
 
@@ -66,3 +67,17 @@ def add_feedback(body: schemas.FeedbackIn, user=Depends(require_user),
                          liked=int(body.liked), reason=body.reason))
     session.commit()
     return {"saved": True, "total": session.query(Feedback).filter_by(user_id=user.id).count()}
+
+
+@router.delete("", status_code=204, responses={401: {"model": schemas.Error}})
+def delete_account(body: schemas.PasswordCheck, user=Depends(require_user),
+                   session: Session = Depends(get_session)):
+    """Delete the account and everything saved with it: profile, kitchen, likes.
+
+    The password is asked again, so a token left on a shared computer is not enough.
+    """
+    if not verify_password(body.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Wrong password.")
+    session.delete(user)   # the profile, inventory and feedback go with it (cascade)
+    session.commit()
+    return Response(status_code=204)

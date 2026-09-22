@@ -429,7 +429,7 @@ step's seconds. Compare the revision count too — if the writer misses targets 
 
 ## 13. Deployment
 
-Phase 18 (Docker) and Phase 19 (Jenkins) are built; Phase 20 (EC2) is the plan below.
+Phase 18 (Docker), Phase 19 (Jenkins) and Phase 20 (EC2) are built.
 
 **Jenkins, as built.** Jenkins runs on the Mac (Homebrew) and checks every change pushed to
 GitHub (it polls every 5 minutes; *Build Now* works too). The `Jenkinsfile` takes a clean copy
@@ -448,28 +448,39 @@ data and the ranker stays a manual step, because the raw data is not on GitHub.
 | Code and small reference files only in the image | RecipeNLG is non-commercial and must not be shipped; the library, index, database and saved answers are mounted from `data/processed`, the ranker read-only from `ml/artifacts` |
 | `.env` read by compose at run time | keys never enter the image |
 | a normal user (`chef`, uid 1000) | the app does not run as root |
-| `HEALTHCHECK` on `/health` | Docker (and later EC2) can tell when it is up or stuck |
+| `HEALTHCHECK` on `/health` | Docker can tell when it is up or stuck, locally and on EC2 |
 | the search model baked into the image, `HF_HUB_OFFLINE=1` | no download or Hugging Face check at start |
 | `WARM_UP=true` | the library, tables and search model load when the container starts, so the first visitor only waits for Gemini; a missing key or data is logged, never fatal |
-| port bound to `127.0.0.1` locally | only this computer can reach it until deployment opens it deliberately |
+| port `${PUBLISH_PORT:-127.0.0.1:8000}` | locally only this computer can reach it; the server sets `PUBLISH_PORT=80` on purpose |
 
 A ranker saved by a different scikit-learn version cannot always be read back, so `load_model`
 falls back to the rule score and logs a warning instead of breaking every plan.
 
+**EC2, as built.** One Ubuntu server (t3.small, 20 GiB, Mumbai) runs the same
+`docker compose` as the Mac. The code comes from GitHub (`git clone`); what git does not hold
+(the data in `data/processed`, the ranker in `ml/artifacts` and `.env`) is copied across once
+with `scp`. On the server `.env` sets `ENVIRONMENT=production` (the app then refuses a weak JWT
+secret or a missing Gemini key), a new `JWT_SECRET_KEY`, and `PUBLISH_PORT=80`, which
+`compose.yml` uses in place of `127.0.0.1:8000`. A 2 GB swapfile lets the image build on 2 GB of
+memory. Updating is `git pull` then `docker compose up -d --build`. Steps: README, "Deploy on
+AWS EC2".
+
 ```mermaid
 flowchart LR
     Dev["Mac (local dev)"] -->|"git push"| GH["GitHub repo"]
-    GH -->|"poll every 5 min"| J["Jenkins (on the Mac)"]
-    J -->|"pytest + report"| J
-    J -->|"docker buildx (linux/arm64)"| IMG["Image: api (serves the website too)"]
-    IMG -->|"push"| REG["GitHub Container Registry"]
-    J -->|"ssh: docker compose pull && up -d"| EC2["AWS EC2 (t4g) + Docker"]
-    REG --> EC2
-    EC2 --> APP["api + website :8000<br/>volumes: sqlite, chroma, mlruns"]
+    GH -->|"poll every 5 min"| J["Jenkins (on the Mac)<br/>test, build image, smoke test"]
+    GH -->|"git clone / git pull"| EC2["AWS EC2 (Ubuntu, t3.small)<br/>Docker + compose"]
+    Dev -->|"scp once: data, ranker, .env"| EC2
+    EC2 --> APP["api + website on port 80<br/>volumes: data/processed, ml/artifacts"]
+    User["Browser"] -->|"http://public-ip"| APP
 ```
 
-- **Docker** = packaging/runtime. **GHCR** = image storage. **Jenkins** = automation. **AWS EC2** = the machine. **FastAPI** = the backend inside the container.
-- Billing alarm before any AWS resource; security group opens only 22 (your IP) and 80/443.
+- **Docker** = packaging and runtime. **Jenkins** = checks every change. **AWS EC2** = the
+  machine. **FastAPI** = the backend inside the container.
+- Security group: SSH (22) from your IP only, HTTP (80) from anywhere. Plain HTTP is fine for a
+  demo; real users would need HTTPS (a domain and a certificate) in front.
+- Cost: the instance and its disk cost money while they exist. Stop it when not in use;
+  terminate it to delete everything.
 
 ---
 
@@ -527,7 +538,7 @@ recipenlg ────┴─> foods -> recipes -> nutrition -> tags -> index
 | 4 | Greedy planner | ILP solver (PuLP) | Easy to understand; ILP is a possible later upgrade |
 | 5 | SQLite + Chroma files | Postgres + pgvector | Zero setup; swap later via SQLAlchemy |
 | 6 | Bearer JWT | Cookies (reference repo) | One token the browser sends on each call; no session store, no CSRF handling |
-| 7 | EC2 + compose, GHCR | ECS Fargate + ECR | Free-tier budget; ECS remains an upgrade path |
+| 7 | One EC2 server + compose, image built on the server | ECS Fargate + ECR; an image registry | Cheapest and simplest; the same commands as on the Mac |
 | 8 | Synthetic interactions, clearly labeled | No ML until real users | Enables a genuine, evaluated model now |
 | 9 | Requirement Agent and critic in Python; saved answers + temperature 0 for the rest | LLM for all four; a local model | Two agents truly deterministic, two repeatable; fewer Gemini calls |
 

@@ -127,8 +127,10 @@ uvicorn app.api.main:app --reload
 The site in `web/` is plain HTML, CSS and JavaScript — no build step, no framework — served by
 FastAPI itself, so one command runs the whole product. The food photography is loaded from
 [Pexels](https://www.pexels.com/license/) under their free licence, so nothing is committed to
-this repository; with no internet each photo frame falls back to a warm gradient and the page
-still works.
+this repository. A recipe or a day in a plan only gets a photo when we have one of that dish
+(paneer, dosa, idli, chana, salad, quinoa bowl, thali); otherwise it has none, because a wrong
+picture is worse than no picture. With no internet the page backdrops fall back to a warm
+gradient and the page still works.
 
 | Method | Path | Purpose |
 |---|---|---|

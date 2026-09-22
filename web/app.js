@@ -65,18 +65,28 @@ const photoUrl = (key, width) =>
   `https://images.pexels.com/photos/${PHOTOS[key] || PHOTOS.thali}` +
   `?auto=compress&cs=tinysrgb&fit=crop&w=${width || 800}`;
 
-/** Which photo suits a dish, judged by its name. */
+/** The photo of this dish, judged by its name - or null when we have no photo of it.
+    A dish only gets a photo that shows that dish: a wrong picture is worse than none. */
 const DISH_WORDS = [
-  [/paneer|tikka|makhani|butter masala|kofta|cheese/i, 'paneer'],
-  [/idli|dosa|uttapam|upma|sambar|vada/i, 'dosa'],
-  [/poha|oats|porridge|breakfast|smoothie|chilla|omelette|egg/i, 'idli'],
-  [/chana|chole|chickpea|rajma|dal|lentil|sambhar|bean|soup|stew/i, 'chana'],
-  [/salad|slaw|raita|chaat|sprout/i, 'salad'],
-  [/quinoa|tofu|buddha|grain bowl|bowl/i, 'bowl'],
-  [/rice|biryani|pulao|khichdi|thali|curry/i, 'thali'],
-  [/stir|noodle|veg|vegetable|sabzi|bhaji/i, 'veg'],
+  [/paneer/i, 'paneer'],
+  [/salad/i, 'salad'],
+  [/dosa/i, 'dosa'],
+  [/idli|uttapam|sambar|sambhar|medu vada/i, 'idli'],
+  [/chana|chole|chickpea (curry|masala)/i, 'chana'],
+  [/quinoa|tofu|buddha bowl|grain bowl/i, 'bowl'],
+  [/vegetable bowl|veggie bowl|stir[- ]?fr(y|ied) vegetables?/i, 'veg'],
+  [/thali/i, 'thali'],
 ];
-const photoFor = (name) => (DISH_WORDS.find(([pattern]) => pattern.test(String(name))) || [, 'thali'])[1];
+const photoFor = (name) => {
+  const match = DISH_WORDS.find(([pattern]) => pattern.test(String(name || '')));
+  return match ? match[1] : null;
+};
+
+/** A dish photo, or nothing at all when we do not have a photo of that dish. */
+const dishPhoto = (name, width, cls) => {
+  const key = photoFor(name);
+  return key ? photoFrame(key, width, cls) : '';
+};
 
 /** An empty photo frame. Call mountPhotos on its container to fill it in. */
 const photoFrame = (key, width, cls, caption) =>
@@ -94,7 +104,11 @@ function mountPhotos(root) {
     image.loading = /hero-shot|page-bg|cta-bg/.test(frame.className) ? 'eager' : 'lazy';
     image.decoding = 'async';
     image.onload = () => image.classList.add('on');
-    image.onerror = () => { frame.classList.add('noimg'); image.remove(); };
+    image.onerror = () => {
+      // a dish photo that fails is removed; a backdrop keeps its warm gradient
+      if (frame.classList.contains('dish')) { frame.remove(); return; }
+      frame.classList.add('noimg'); image.remove();
+    };
     image.src = photoUrl(frame.dataset.photo, Number(frame.dataset.w) || 800);
     frame.prepend(image);
   });
@@ -326,7 +340,7 @@ function renderRecipe(result) {
   const grid = el('div', 'recipe-grid');
 
   const left = el('div', 'card');
-  left.innerHTML = photoFrame(photoFor(r.title), 900, 'dish-photo') +
+  left.innerHTML = dishPhoto(r.title, 900, 'dish dish-photo') +
     `<div class="dish-head"><h2>${esc(r.title)}</h2>
        <p class="sub">Serves ${esc(r.servings)}</p></div>
      <div class="recipe-body">
@@ -464,9 +478,12 @@ function renderPlan(plan) {
   const week = el('div', 'week');
   days.forEach((day) => {
     const meals = plan.meals.filter((m) => m.day === day);
-    const headline = (meals.find((m) => m.slot === 'dinner') || meals[0] || {}).title;
+    // the day's photo shows one of its own meals (dinner first), or there is none
+    const pictured = ['dinner', 'lunch', 'breakfast', 'snack']
+      .map((slot) => meals.find((m) => m.slot === slot && photoFor(m.title)))
+      .find(Boolean);
     const card = el('div', 'day',
-      photoFrame(photoFor(headline), 420) +
+      (pictured ? dishPhoto(pictured.title, 420, 'dish') : '') +
       `<h4>Day ${day}</h4><div class="day-meals">` +
       meals.map((m) =>
         `<div class="meal"><span class="slot">${esc(SLOTS[m.slot] || m.slot)}${

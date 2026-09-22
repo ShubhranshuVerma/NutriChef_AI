@@ -611,6 +611,11 @@ tr.bought { opacity: .45; text-decoration: line-through; }
 .kitchen-grid h3 { color: var(--brand); margin-bottom: .4rem; }
 .kitchen-grid .danger-zone { grid-column: 1 / -1; border-color: rgba(179, 38, 30, .35); }
 .kitchen-grid .danger-zone h3 { color: var(--bad); }
+.saved-note { margin: .9rem 0 0; padding: .6rem .9rem; border-radius: 10px;
+  background: rgba(20, 69, 47, .07); color: var(--ink-soft); font-size: .92rem; }
+.saved-note b { color: var(--brand); }
+.controls .saved-note { grid-column: 1 / -1; margin: 0; }
+.saved-note a { color: var(--brand); font-weight: 600; margin-left: .3rem; }
 .confirm-row { display: grid; grid-template-columns: minmax(0, 320px) auto; gap: .6rem;
   align-items: end; justify-content: start; margin-top: 1rem; }
 .btn.danger { border-color: var(--bad); color: var(--bad); }

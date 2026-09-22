@@ -143,6 +143,7 @@ const state = {
   allergies: new Set(), planAllergies: new Set(),
   slots: new Set(['breakfast', 'lunch', 'dinner']),
   recipe: null, plan: null, pantry: [], bought: new Set(),
+  saved: null,   // the signed-in person's saved settings, once put into the forms
 };
 
 async function call(method, path, body) {
@@ -192,6 +193,44 @@ function go(view) {
   window.scrollTo({ top: 0, behavior: 'instant' });
   location.hash = view === 'home' ? '' : view;
   if (view === 'kitchen') renderKitchen();
+  if (view === 'recipe' || view === 'plan') useSavedSettings();
+}
+
+/* ---------------- saved settings in the forms ---------------- */
+
+/** Fill the recipe and plan forms from My kitchen, once per sign-in, and say so. */
+async function useSavedSettings() {
+  if (!signedIn()) { paintSavedNotes(); return; }
+  if (state.saved) { paintSavedNotes(); return; }
+  try { state.saved = await api.profile(); } catch (error) { return; }
+  const saved = state.saved;
+  if (saved.diet) { $('dietSelect').value = saved.diet; $('planDiet').value = saved.diet; }
+  (saved.allergies || []).forEach((code) => { state.allergies.add(code); state.planAllergies.add(code); });
+  pills($('allergyPills'), ALLERGENS, state.allergies);
+  pills($('planAllergyPills'), ALLERGENS, state.planAllergies);
+  if (saved.exclude && saved.exclude.length) $('excludeInput').value = saved.exclude.join(', ');
+  if (saved.min_protein_g) {
+    $('planProtein').value = Math.min(60, saved.min_protein_g);
+    $('planProteinOut').textContent = $('planProtein').value + ' g';
+  }
+  paintSavedNotes();
+}
+
+function paintSavedNotes() {
+  const saved = signedIn() ? state.saved : null;
+  const parts = [];
+  if (saved && saved.diet) parts.push(DIETS[saved.diet] || saved.diet);
+  if (saved && saved.allergies && saved.allergies.length) {
+    parts.push('allergic to ' + saved.allergies.map((code) => ALLERGENS[code] || code).join(', '));
+  }
+  ['recipeSaved', 'planSaved'].forEach((id) => {
+    const note = $(id);
+    note.hidden = !parts.length;
+    if (!parts.length) return;
+    note.innerHTML = `Using your saved settings: <b>${esc(parts.join(' · '))}</b>.
+      Saved allergies always apply. <a href="#kitchen" data-go="kitchen">Change them</a>`;
+    note.querySelector('a').onclick = (event) => { event.preventDefault(); go('kitchen'); };
+  });
 }
 
 function toast(message, bad) {
@@ -204,6 +243,8 @@ function signedIn() { return Boolean(state.token); }
 
 function forgetSignIn() {
   state.token = state.email = null;
+  state.saved = null;
+  paintSavedNotes();
   localStorage.removeItem('nc_token'); localStorage.removeItem('nc_email');
   paintAccount();
 }
@@ -573,6 +614,7 @@ async function renderKitchen() {
         max_kcal: Number($('kKcal').value) || null,
         max_cook_minutes: Number($('kMinutes').value) || null,
       });
+      state.saved = null;   // the forms pick up the new settings next time
       toast('Saved. We will use this from now on.');
     } catch (error) { toast(explain(error), true); }
   };
@@ -672,6 +714,7 @@ async function submitAuth(event) {
     paintAccount();
     toast(authMode === 'signup' ? 'Welcome to NutriChef.' : 'Signed in.');
     if (!$('view-kitchen').hidden) renderKitchen();
+    if (!$('view-recipe').hidden || !$('view-plan').hidden) useSavedSettings();
   } catch (error) {
     $('authError').textContent = explain(error);
     $('authError').hidden = false;

@@ -127,10 +127,10 @@ uvicorn app.api.main:app --reload
 The site in `web/` is plain HTML, CSS and JavaScript — no build step, no framework — served by
 FastAPI itself, so one command runs the whole product. The food photography is loaded from
 [Pexels](https://www.pexels.com/license/) under their free licence, so nothing is committed to
-this repository. A recipe or a day in a plan only gets a photo when we have one of that dish
-(paneer, dosa, idli, chana, salad, quinoa bowl, thali); otherwise it has none, because a wrong
-picture is worse than no picture. A photo that cannot load is removed, never left as an empty
-block, so the page still looks finished with no internet.
+this repository. Every recipe and every day in a plan gets the closest photo we have, judged
+by the dish name (about 35 dishes and types: paneer, dal, biryani, poha, omelette, pasta, cake
+and so on); a dish with no closer match gets an Indian thali. If a photo cannot load, the thali
+is tried instead, and only if that fails too is the photo removed, never left as an empty block.
 
 | Method | Path | Purpose |
 |---|---|---|

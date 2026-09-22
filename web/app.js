@@ -59,34 +59,73 @@ const PHOTOS = {
   bowl:    '34227771/pexels-photo-34227771.jpeg',   // tofu and quinoa bowl
   cooking: '3531700/pexels-photo-3531700.jpeg',     // hands cooking with spices
   veg:     '1893563/pexels-photo-1893563.jpeg',     // vegetable bowl with sesame
+  dal:     '30203314/pexels-photo-30203314.jpeg',   // dal tadka in a brass bowl
+  khichdi: '6363501/pexels-photo-6363501.jpeg',     // khichdi with red chillies
+  biryani: '7593230/pexels-photo-7593230.jpeg',     // vegetable biryani
+  rajma:   '37121072/pexels-photo-37121072.jpeg',   // rice with beans
+  eggcurry:'8625813/pexels-photo-8625813.jpeg',     // green masala egg curry
+  omelette:'25402351/pexels-photo-25402351.jpeg',   // omelette with salad
+  poha:    '30769669/pexels-photo-30769669.jpeg',   // poha
+  oats:    '4220141/pexels-photo-4220141.jpeg',     // oats bowl with fruit
+  soup:    '4595313/pexels-photo-4595313.jpeg',     // a bowl of soup
+  sabzi:   '28579050/pexels-photo-28579050.jpeg',   // roti with mixed vegetable curry
+  paratha: '37555450/pexels-photo-37555450.jpeg',   // paratha on a skillet
+  upma:    '20408458/pexels-photo-20408458.jpeg',   // upma with chutneys and sambar
+  curry:   '941849/pexels-photo-941849.jpeg',       // an Indian curry
+  pasta:   '31637793/pexels-photo-31637793.jpeg',   // spaghetti in tomato sauce
+  bake:    '32039641/pexels-photo-32039641.jpeg',   // baked vegetable casserole
+  cake:    '19651306/pexels-photo-19651306.jpeg',   // slices of cake
+  bread:   '4267964/pexels-photo-4267964.jpeg',     // a homemade loaf
+  sandwich:'14410236/pexels-photo-14410236.jpeg',   // vegetable sandwich
+  smoothie:'6990114/pexels-photo-6990114.jpeg',     // fruit smoothies
+  pancake: '6758386/pexels-photo-6758386.jpeg',     // a stack of pancakes
+  cookie:  '8478048/pexels-photo-8478048.jpeg',     // cookies on a tray
 };
 
 const photoUrl = (key, width) =>
   `https://images.pexels.com/photos/${PHOTOS[key] || PHOTOS.thali}` +
   `?auto=compress&cs=tinysrgb&fit=crop&w=${width || 800}`;
 
-/** The photo of this dish, judged by its name - or null when we have no photo of it.
-    A dish only gets a photo that shows that dish: a wrong picture is worse than none. */
+/** The photo that best matches a dish, judged by its name. The first match wins, so the
+    more telling words come first (oatmeal cookies are cookies, rice pudding is a dessert);
+    a dish we have no closer photo for gets a full Indian meal. */
 const DISH_WORDS = [
   [/paneer/i, 'paneer'],
-  [/salad/i, 'salad'],
+  [/pasta|spaghetti|macaroni|penne|lasagn|noodle|fettuccine|linguine/i, 'pasta'],
+  [/casserole|bake|gratin|au gratin|souffle/i, 'bake'],
+  [/pancake|waffle|crepe|french toast/i, 'pancake'],
+  [/cookie|biscuit|brownie|bar(s)?\b/i, 'cookie'],
+  [/cake|cheesecake|\bpies?\b|\btarts?\b|pudding|kheer|halwa|dessert|cobbler|crumble/i, 'cake'],
+  [/bread|muffin|loaf|scone|roll(s)?\b|bun(s)?\b/i, 'bread'],
+  [/sandwich|toast|burger|panini|sub\b/i, 'sandwich'],
+  [/smoothie|shake|lassi|juice|punch|drink/i, 'smoothie'],
+  [/salad|raita|sprout/i, 'salad'],
   [/dosa/i, 'dosa'],
-  [/idli|uttapam|sambar|sambhar|medu vada/i, 'idli'],
-  [/chana|chole|chickpea (curry|masala)/i, 'chana'],
+  [/idli|uttapam|sambar|sambhar|vada/i, 'idli'],
+  [/upma/i, 'upma'],
+  [/poha/i, 'poha'],
+  [/oat|porridge|muesli|granola|daliya|dalia/i, 'oats'],
+  [/omelet|bhurji|scrambled|frittata|egg (toast|sandwich)/i, 'omelette'],
+  [/egg|anda/i, 'eggcurry'],
+  [/chana|chole|chickpea/i, 'chana'],
+  [/rajma|kidney bean|bean/i, 'rajma'],
+  [/khichdi|khichri/i, 'khichdi'],
+  [/biryani|pulao|pilaf|fried rice|rice/i, 'biryani'],
+  [/dal|daal|lentil|moong|masoor|toor/i, 'dal'],
+  [/soup|rasam|shorba|stew/i, 'soup'],
+  [/paratha|roti|chapati|naan|thepla|wrap|frankie/i, 'paratha'],
   [/quinoa|tofu|buddha bowl|grain bowl/i, 'bowl'],
-  [/vegetable bowl|veggie bowl|stir[- ]?fr(y|ied) vegetables?/i, 'veg'],
-  [/thali/i, 'thali'],
+  [/vegetable bowl|veggie bowl/i, 'veg'],
+  [/sabzi|subzi|bhaji|aloo|gobi|bhindi|palak|mushroom|vegetable|veg\b|matar|baingan/i, 'sabzi'],
+  [/curry|masala|korma|kofta|makhani/i, 'curry'],
 ];
 const photoFor = (name) => {
   const match = DISH_WORDS.find(([pattern]) => pattern.test(String(name || '')));
-  return match ? match[1] : null;
+  return match ? match[1] : 'thali';
 };
 
-/** A dish photo, or nothing at all when we do not have a photo of that dish. */
-const dishPhoto = (name, width, cls) => {
-  const key = photoFor(name);
-  return key ? photoFrame(key, width, cls) : '';
-};
+/** A photo for this dish: always one, the closest we have. */
+const dishPhoto = (name, width, cls) => photoFrame(photoFor(name), width, cls);
 
 /** An empty photo frame. Call mountPhotos on its container to fill it in. */
 const photoFrame = (key, width, cls, caption) =>
@@ -114,7 +153,15 @@ function mountPhotos(root) {
     image.loading = /hero-shot|page-bg|cta-bg/.test(frame.className) ? 'eager' : 'lazy';
     image.decoding = 'async';
     image.onload = () => image.classList.add('on');
-    image.onerror = () => removePhoto(frame);
+    image.onerror = () => {
+      // try the thali photo once before giving up, so the space still shows food
+      if (frame.dataset.photo !== 'thali' && !frame.dataset.retried) {
+        frame.dataset.retried = '1';
+        image.src = photoUrl('thali', Number(frame.dataset.w) || 800);
+        return;
+      }
+      removePhoto(frame);
+    };
     image.src = photoUrl(frame.dataset.photo, Number(frame.dataset.w) || 800);
     frame.prepend(image);
   });
@@ -484,12 +531,10 @@ function renderPlan(plan) {
   const week = el('div', 'week');
   days.forEach((day) => {
     const meals = plan.meals.filter((m) => m.day === day);
-    // the day's photo shows one of its own meals (dinner first), or there is none
-    const pictured = ['dinner', 'lunch', 'breakfast', 'snack']
-      .map((slot) => meals.find((m) => m.slot === slot && photoFor(m.title)))
-      .find(Boolean);
+    // the day's photo shows its dinner (or its first meal)
+    const headline = (meals.find((m) => m.slot === 'dinner') || meals[0] || {}).title;
     const card = el('div', 'day',
-      (pictured ? dishPhoto(pictured.title, 420, 'dish') : '') +
+      dishPhoto(headline, 420, 'dish') +
       `<h4>Day ${day}</h4><div class="day-meals">` +
       meals.map((m) =>
         `<div class="meal"><span class="slot">${esc(SLOTS[m.slot] || m.slot)}${

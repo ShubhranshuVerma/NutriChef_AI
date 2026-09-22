@@ -1,7 +1,7 @@
 # NutriChef AI — Architecture (v2)
 
 > Constraint-aware personalized meal planning & recipe intelligence platform.
-> Status: v2 describes what is built and running (Phases 0-17, then simplified: fewer files, plain code, a core test set). Only section 13 (deployment) is still a plan.
+> Status: v2 describes what is built and running: Phases 0-20 (through Docker, Jenkins and AWS EC2) plus hardening (account deletion, an hourly recipe limit).
 > Nutrition values are estimates. NutriChef is a general wellness / meal-planning tool, not a medical device, and never guarantees allergy safety.
 
 ---
@@ -303,8 +303,8 @@ erDiagram
 | `inventory` | user_id, ingredient_id (unique per user), grams, expires_in_days |
 | `feedback` | user_id, recipe_id, liked (1/0), reason, created_at |
 
-Deleting a user deletes their profile, inventory and feedback (cascade), though no endpoint for
-this exists yet. If the schema changes during development, the local SQLite file is deleted and
+Deleting a user deletes their profile, inventory and feedback (cascade); `DELETE /api/v1/users/me`
+does this after the password is typed again. If the schema changes during development, the local SQLite file is deleted and
 recreated.
 
 File-based data (git-ignored, rebuilt by the scripts):
@@ -328,6 +328,7 @@ File-based data (git-ignored, rebuilt by the scripts):
 | GET/PUT | `/api/v1/users/me/profile` | required | saved diet, allergies, exclusions, targets |
 | GET/PUT | `/api/v1/users/me/inventory` | required | what is at home (PUT replaces the list) |
 | POST | `/api/v1/users/me/feedback` | required | like/dislike a recipe, with an optional reason |
+| DELETE | `/api/v1/users/me` | required + password | delete the account and everything saved with it |
 | POST | `/api/v1/recipes/generate` | optional | Scenario 1: free text → one checked recipe |
 | POST | `/api/v1/plans/generate` | optional | Scenario 2: N-day plan inside a budget |
 | GET | `/`, `/docs` | – | the website; the interactive API docs |
@@ -341,8 +342,8 @@ Both are thin: validate with Pydantic, call a service (`app/services/recipe_serv
 API and the command line run the same code.
 
 Errors use FastAPI's `{"detail": ...}` shape: 401 for a missing or bad token, 409 for an email
-already registered, 422 for input that fails validation, 503 when something is missing (Gemini
-key, recipe library) or the daily Gemini quota is used up, and 500 with a fixed message for
+already registered, 422 for input that fails validation, 429 when the hourly recipe limit is reached, 503 when something is missing (Gemini
+key, recipe library), the daily Gemini quota is used up or Gemini is too slow, and 500 with a fixed message for
 anything unexpected. Tracebacks only go to the logs.
 
 ---
@@ -405,8 +406,8 @@ What was slow, and what changed:
    (`LLM_THINKING` in `.env`).
 8. **Answers came back as prose around JSON.** Every call now asks for `application/json` only.
 
-The first request after the server starts loads the library and tables, so it is slower than the
-rest (there is no background warm-up — it was removed to keep start-up simple).
+Run without Docker, the first request after the server starts loads the library and tables, so it
+is slower than the rest. In Docker, `WARM_UP=true` loads them when the container starts instead.
 
 Items 7 and 8 can only be timed against Gemini itself:
 `python -m scripts.demo recipe --no-cache --thinking medium`, then `--thinking low`, prints each

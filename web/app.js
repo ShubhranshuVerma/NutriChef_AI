@@ -43,8 +43,8 @@ const weight = (value) => (value >= 1000 ? (value / 1000).toFixed(1) + ' kg'
    Free-licence food photography from Pexels, loaded straight from their CDN so
    nothing is committed to the repository. The path of each one was checked by
    hand - most are .jpeg but not all, so they are written out in full rather
-   than built from the id. If a photo fails to load the frame keeps its warm
-   gradient, so the page never shows a broken image. */
+   than built from the id. If a photo fails to load it is removed, so the page
+   never shows a broken image or an empty block. */
 
 const PHOTOS = {
   thali:   '29148133/pexels-photo-29148133.jpeg',   // vegetarian thali with naan
@@ -93,6 +93,16 @@ const photoFrame = (key, width, cls, caption) =>
   `<figure class="ph ${cls || ''}" data-photo="${key}" data-w="${width}">${
     caption ? `<figcaption>${esc(caption)}</figcaption>` : ''}</figure>`;
 
+/** A photo that cannot load is taken away, never left as an empty coloured block. */
+function removePhoto(frame) {
+  if (frame.classList.contains('hero-shot')) { frame.closest('.hero-art').remove(); return; }
+  const card = frame.closest('.gallery-card');
+  if (!card) { frame.remove(); return; }
+  card.remove();
+  // no dish photos left at all: hide the whole gallery section, heading included
+  if (!$('gallery').children.length) $('gallery').closest('.gallery-band').remove();
+}
+
 /** Put a real <img> inside every frame that does not have one yet. */
 function mountPhotos(root) {
   (root || document).querySelectorAll('.ph[data-photo]').forEach((frame) => {
@@ -104,11 +114,7 @@ function mountPhotos(root) {
     image.loading = /hero-shot|page-bg|cta-bg/.test(frame.className) ? 'eager' : 'lazy';
     image.decoding = 'async';
     image.onload = () => image.classList.add('on');
-    image.onerror = () => {
-      // a dish photo that fails is removed; a backdrop keeps its warm gradient
-      if (frame.classList.contains('dish')) { frame.remove(); return; }
-      frame.classList.add('noimg'); image.remove();
-    };
+    image.onerror = () => removePhoto(frame);
     image.src = photoUrl(frame.dataset.photo, Number(frame.dataset.w) || 800);
     frame.prepend(image);
   });

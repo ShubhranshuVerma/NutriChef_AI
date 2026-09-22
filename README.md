@@ -129,8 +129,8 @@ FastAPI itself, so one command runs the whole product. The food photography is l
 [Pexels](https://www.pexels.com/license/) under their free licence, so nothing is committed to
 this repository. A recipe or a day in a plan only gets a photo when we have one of that dish
 (paneer, dosa, idli, chana, salad, quinoa bowl, thali); otherwise it has none, because a wrong
-picture is worse than no picture. With no internet the page backdrops fall back to a warm
-gradient and the page still works.
+picture is worse than no picture. A photo that cannot load is removed, never left as an empty
+block, so the page still looks finished with no internet.
 
 | Method | Path | Purpose |
 |---|---|---|

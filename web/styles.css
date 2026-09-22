@@ -65,8 +65,8 @@ a { color: var(--brand-2); }
 
 /* ---------------- photographs ---------------- */
 
-/* .ph is a framed photo. The gradient underneath is not decoration: it is the
-   fallback, so a photo that fails to load still looks designed. */
+/* .ph is a framed photo. The soft colour shows only while it loads; a photo that
+   cannot load is removed by app.js. */
 .ph {
   position: relative;
   margin: 0;
@@ -82,16 +82,6 @@ a { color: var(--brand-2); }
   transition: opacity .7s ease, transform .9s ease;
 }
 .ph img.on { opacity: 1; }
-.ph.noimg::after {
-  content: '';
-  position: absolute; inset: 0;
-  opacity: .5;
-  background-image:
-    radial-gradient(circle, rgba(196, 86, 42, .28) 0 28%, transparent 29%),
-    radial-gradient(circle, rgba(20, 69, 47, .22) 0 22%, transparent 23%);
-  background-size: 46px 46px, 46px 46px;
-  background-position: 0 0, 23px 23px;
-}
 .ph figcaption {
   position: absolute; left: 14px; right: 14px; bottom: 14px; z-index: 2;
   padding: .5rem .8rem;
@@ -357,6 +347,7 @@ a { color: var(--brand-2); }
   padding: clamp(3.5rem, 8vw, 6rem) 1.5rem;
   text-align: center; color: #fff;
   overflow: hidden;
+  background: var(--brand);   /* what shows if the photo cannot load */
 }
 .cta-bg { position: absolute; inset: 0; z-index: -2; border-radius: 0; }
 .cta::after {
@@ -374,6 +365,7 @@ a { color: var(--brand-2); }
   padding: clamp(3rem, 7vw, 5rem) clamp(1rem, 4vw, 2.6rem) clamp(4rem, 8vw, 6rem);
   color: #fff; overflow: hidden;
   text-align: center;
+  background: var(--brand);   /* what shows if the photo cannot load */
 }
 .page-bg { position: absolute; inset: 0; z-index: -2; border-radius: 0; }
 .page-head::after {

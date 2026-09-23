@@ -13,8 +13,8 @@
 pipeline {
     agent any
 
-    // Look at GitHub every 5 minutes and build any new commit. "Build Now" works too.
-    triggers { pollSCM('H/5 * * * *') }
+    // Look at GitHub every 1 minutes and build any new commit. "Build Now" works too.
+    triggers { pollSCM('H/1 * * * *') }
 
     environment {
         // The Python 3.11 used to create the .venv. Change this if yours is elsewhere
